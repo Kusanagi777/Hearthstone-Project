@@ -1,0 +1,265 @@
+[gd_scene load_steps=6 format=3 uid="uid://632ip3qy3hbl"]
+
+[ext_resource type="Script" uid="uid://doq2d408fmkv8" path="res://scripts/main_game.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://bibn5oj37kqmw" path="res://scripts/player_controller.gd" id="2_player_controller"]
+[ext_resource type="PackedScene" uid="uid://cnut1x650in30" path="res://Scenes/card_ui.tscn" id="3_mgc0q"]
+[ext_resource type="PackedScene" uid="uid://c7ww28dm0nbva" path="res://Scenes/minion.tscn" id="4_bb2iq"]
+[ext_resource type="PackedScene" path="res://Scenes/targeting_arrow.tscn" id="5_18r40"]
+
+[node name="MainGame" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_script")
+
+[node name="Background" type="ColorRect" parent="."]
+z_index = -10
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.12, 0.15, 0.2, 1)
+
+[node name="GameArea" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/separation = 5
+
+[node name="EnemyHandArea" type="PanelContainer" parent="GameArea"]
+custom_minimum_size = Vector2(0, 100)
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="EnemyHandContainer" type="HBoxContainer" parent="GameArea/EnemyHandArea"]
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_filter = 2
+theme_override_constants/separation = -30
+alignment = 1
+
+[node name="EnemySection" type="HBoxContainer" parent="GameArea"]
+custom_minimum_size = Vector2(0, 120)
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+theme_override_constants/separation = 10
+
+[node name="EnemyHeroArea" type="PanelContainer" parent="GameArea/EnemySection"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+
+[node name="HeroContent" type="VBoxContainer" parent="GameArea/EnemySection/EnemyHeroArea"]
+layout_mode = 2
+mouse_filter = 2
+alignment = 1
+
+[node name="Portrait" type="Panel" parent="GameArea/EnemySection/EnemyHeroArea/HeroContent"]
+custom_minimum_size = Vector2(60, 60)
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_filter = 2
+
+[node name="EnemyHealthLabel" type="Label" parent="GameArea/EnemySection/EnemyHeroArea/HeroContent"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.3, 0.3, 1)
+theme_override_font_sizes/font_size = 16
+text = "HP: 30"
+horizontal_alignment = 1
+
+[node name="EnemyManaLabel" type="Label" parent="GameArea/EnemySection/EnemyHeroArea/HeroContent"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.3, 0.5, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "0 / 0"
+horizontal_alignment = 1
+
+[node name="EnemyBoardZone" type="PanelContainer" parent="GameArea/EnemySection"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="EnemyBoard" type="HBoxContainer" parent="GameArea/EnemySection/EnemyBoardZone"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 2
+theme_override_constants/separation = 10
+alignment = 1
+
+[node name="EnemyInfoPanel" type="VBoxContainer" parent="GameArea/EnemySection"]
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+mouse_filter = 2
+alignment = 1
+
+[node name="EnemyDeckLabel" type="Label" parent="GameArea/EnemySection/EnemyInfoPanel"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+text = "Deck: 30"
+horizontal_alignment = 1
+
+[node name="Divider" type="ColorRect" parent="GameArea"]
+custom_minimum_size = Vector2(0, 4)
+layout_mode = 2
+mouse_filter = 2
+color = Color(0.4, 0.35, 0.3, 1)
+
+[node name="PlayerSection" type="HBoxContainer" parent="GameArea"]
+custom_minimum_size = Vector2(0, 120)
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+theme_override_constants/separation = 10
+
+[node name="PlayerHeroArea" type="PanelContainer" parent="GameArea/PlayerSection"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+
+[node name="HeroContent" type="VBoxContainer" parent="GameArea/PlayerSection/PlayerHeroArea"]
+layout_mode = 2
+mouse_filter = 2
+alignment = 1
+
+[node name="Portrait" type="Panel" parent="GameArea/PlayerSection/PlayerHeroArea/HeroContent"]
+custom_minimum_size = Vector2(60, 60)
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_filter = 2
+
+[node name="PlayerHealthLabel" type="Label" parent="GameArea/PlayerSection/PlayerHeroArea/HeroContent"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.3, 1, 0.3, 1)
+theme_override_font_sizes/font_size = 16
+text = "HP: 30"
+horizontal_alignment = 1
+
+[node name="ManaLabel" type="Label" parent="GameArea/PlayerSection/PlayerHeroArea/HeroContent"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.3, 0.5, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "0 / 0"
+horizontal_alignment = 1
+
+[node name="PlayerBoardZone" type="PanelContainer" parent="GameArea/PlayerSection"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="PlayerBoard" type="HBoxContainer" parent="GameArea/PlayerSection/PlayerBoardZone"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 2
+theme_override_constants/separation = 10
+alignment = 1
+
+[node name="PlayerInfoPanel" type="VBoxContainer" parent="GameArea/PlayerSection"]
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+mouse_filter = 2
+alignment = 1
+
+[node name="PlayerDeckLabel" type="Label" parent="GameArea/PlayerSection/PlayerInfoPanel"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+text = "Deck: 30"
+horizontal_alignment = 1
+
+[node name="TurnButton" type="Button" parent="GameArea/PlayerSection/PlayerInfoPanel"]
+custom_minimum_size = Vector2(80, 40)
+layout_mode = 2
+text = "End Turn"
+
+[node name="PlayerHandArea" type="PanelContainer" parent="GameArea"]
+custom_minimum_size = Vector2(0, 180)
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="PlayerHandContainer" type="HBoxContainer" parent="GameArea/PlayerHandArea"]
+custom_minimum_size = Vector2(1270, 160)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 2
+theme_override_constants/separation = -30
+alignment = 1
+
+[node name="TurnIndicator" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -60.0
+offset_top = 10.0
+offset_right = 60.0
+offset_bottom = 40.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 18
+text = "Your Turn"
+horizontal_alignment = 1
+
+[node name="GameOverPanel" type="Panel" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -150.0
+offset_top = -75.0
+offset_right = 150.0
+offset_bottom = 75.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="WinnerLabel" type="Label" parent="GameOverPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 0.8, 0.2, 1)
+theme_override_font_sizes/font_size = 24
+text = "Player 1 Wins!"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="PlayerOneController" type="Node" parent="." node_paths=PackedStringArray("hand_container", "board_zone", "enemy_board_zone", "enemy_hero_area", "hero_area")]
+script = ExtResource("2_player_controller")
+hand_container = NodePath("../GameArea/PlayerHandArea/PlayerHandContainer")
+board_zone = NodePath("../GameArea/PlayerSection/PlayerBoardZone/PlayerBoard")
+enemy_board_zone = NodePath("../GameArea/EnemySection/EnemyBoardZone/EnemyBoard")
+enemy_hero_area = NodePath("../GameArea/EnemySection/EnemyHeroArea")
+hero_area = NodePath("../GameArea/PlayerSection/PlayerHeroArea")
+card_ui_scene = ExtResource("3_mgc0q")
+minion_scene = ExtResource("4_bb2iq")
+targeting_arrow_scene = ExtResource("5_18r40")
+
+[node name="PlayerTwoController" type="Node" parent="." node_paths=PackedStringArray("hand_container", "board_zone", "enemy_board_zone", "enemy_hero_area", "hero_area")]
+script = ExtResource("2_player_controller")
+player_id = 1
+hand_container = NodePath("../GameArea/EnemyHandArea/EnemyHandContainer")
+board_zone = NodePath("../GameArea/EnemySection/EnemyBoardZone")
+enemy_board_zone = NodePath("../GameArea/PlayerSection/PlayerBoardZone")
+enemy_hero_area = NodePath("../GameArea/PlayerSection/PlayerHeroArea")
+hero_area = NodePath("../GameArea/EnemySection/EnemyHeroArea")
+card_ui_scene = ExtResource("3_mgc0q")
+minion_scene = ExtResource("4_bb2iq")
+targeting_arrow_scene = ExtResource("5_18r40")
+is_ai = true

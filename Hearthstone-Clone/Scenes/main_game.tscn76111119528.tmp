@@ -1,0 +1,226 @@
+[gd_scene load_steps=8 format=3 uid="uid://632ip3qy3hbl"]
+
+[ext_resource type="PackedScene" uid="uid://cgdxeqv265vrb" path="res://Scenes/card_ui.tscn" id="2_bb2iq"]
+[ext_resource type="Script" uid="uid://bibn5oj37kqmw" path="res://Scripts/player_controller.gd" id="2_mgc0q"]
+[ext_resource type="PackedScene" uid="uid://eg0ejfsi28x4" path="res://Scenes/minion.tscn" id="3_18r40"]
+[ext_resource type="Script" uid="uid://oapmgwmkxrjb" path="res://Scripts/hand_container.gd" id="3_bb2iq"]
+[ext_resource type="PackedScene" uid="uid://2ecqjjnyhfx1" path="res://Scenes/targeting_arrow.tscn" id="4_6y7pd"]
+[ext_resource type="Script" uid="uid://cm11m04bcwuny" path="res://Scripts/board_zone.gd" id="4_18r40"]
+
+[sub_resource type="GDScript" id="GDScript_mgc0q"]
+script/source = "# res://scripts/main_game.gd
+extends Node2D
+
+## Player controllers
+@onready var player_one: PlayerController = $PlayerOne
+@onready var player_two: PlayerController = $PlayerTwo
+
+## UI Elements
+@onready var turn_button: Button = $UI/TurnButton
+@onready var mana_label: Label = $UI/ManaLabel
+@onready var enemy_mana_label: Label = $UI/EnemyManaLabel
+@onready var turn_indicator: Label = $UI/TurnIndicator
+
+## Test deck (for development)
+@export var test_deck: Array[CardData] = []
+
+
+func _ready() -> void:
+	_connect_signals()
+	_setup_test_game()
+
+
+func _connect_signals() -> void:
+	GameManager.turn_started.connect(_on_turn_started)
+	GameManager.mana_changed.connect(_on_mana_changed)
+	GameManager.game_ended.connect(_on_game_ended)
+	
+	if turn_button:
+		turn_button.pressed.connect(_on_turn_button_pressed)
+
+
+func _setup_test_game() -> void:
+	# Create test decks if none provided
+	if test_deck.is_empty():
+		test_deck = _create_test_deck()
+	
+	# Set up both players with the same deck (for testing)
+	GameManager.set_player_deck(0, test_deck.duplicate())
+	GameManager.set_player_deck(1, test_deck.duplicate())
+	
+	# Start the game
+	GameManager.start_game()
+
+
+func _create_test_deck() -> Array[CardData]:
+	var deck: Array[CardData] = []
+	
+	# Create some basic test cards
+	for i in range(30):
+		var card := CardData.new()
+		card.id = \"test_minion_%d\" % i
+		card.card_name = \"Test Minion %d\" % (i % 5 + 1)
+		card.cost = (i % 5) + 1
+		card.attack = (i % 4) + 1
+		card.health = (i % 4) + 2
+		card.card_type = CardData.CardType.MINION
+		card.description = \"A test minion.\"
+		deck.append(card)
+	
+	return deck
+
+
+func _on_turn_started(player_id: int) -> void:
+	if turn_indicator:
+		turn_indicator.text = \"Player %d's Turn\" % (player_id + 1)
+	
+	# Only enable turn button for player one (human player)
+	if turn_button:
+		turn_button.disabled = (player_id != 0)
+
+
+func _on_mana_changed(player_id: int, current: int, maximum: int) -> void:
+	var mana_text := \"%d / %d\" % [current, maximum]
+	
+	if player_id == 0 and mana_label:
+		mana_label.text = mana_text
+	elif player_id == 1 and enemy_mana_label:
+		enemy_mana_label.text = mana_text
+
+
+func _on_turn_button_pressed() -> void:
+	player_one.request_end_turn()
+
+
+func _on_game_ended(winner_id: int) -> void:
+	print(\"Game Over! Player %d wins!\" % (winner_id + 1))
+	# Show game over UI
+"
+
+[node name="MainGame" type="Node2D"]
+script = SubResource("GDScript_mgc0q")
+
+[node name="Background" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="PlayerTwo" type="Node" parent="." node_paths=PackedStringArray("hand_container", "board_zone", "enemy_board_zone", "enemy_hero_area")]
+script = ExtResource("2_mgc0q")
+player_id = 1
+hand_container = NodePath("HandContainer")
+board_zone = NodePath("BoardZone")
+enemy_board_zone = NodePath("../PlayerOne/BoardZone")
+enemy_hero_area = NodePath("../PlayerOne/HeroArea")
+card_ui_scene = ExtResource("2_bb2iq")
+minion_scene = ExtResource("3_18r40")
+targeting_arrow_scene = ExtResource("4_6y7pd")
+is_ai = true
+
+[node name="HandContainer" type="HBoxContainer" parent="PlayerTwo"]
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -20.0
+offset_top = 100.0
+offset_right = 20.0
+offset_bottom = 140.0
+grow_horizontal = 2
+theme_override_constants/separation = -30
+script = ExtResource("3_bb2iq")
+
+[node name="BoardZone" type="HBoxContainer" parent="PlayerTwo"]
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -20.0
+offset_top = 250.0
+offset_right = 20.0
+offset_bottom = 290.0
+grow_horizontal = 2
+script = ExtResource("4_18r40")
+
+[node name="HeroArea" type="Control" parent="PlayerTwo"]
+layout_mode = 3
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -20.0
+offset_top = 50.0
+offset_right = 20.0
+offset_bottom = 90.0
+grow_horizontal = 2
+
+[node name="PlayerOne" type="Node" parent="." node_paths=PackedStringArray("hand_container", "board_zone", "enemy_board_zone", "enemy_hero_area")]
+script = ExtResource("2_mgc0q")
+hand_container = NodePath("HandContainer")
+board_zone = NodePath("BoardZone")
+enemy_board_zone = NodePath("../PlayerTwo/BoardZone")
+enemy_hero_area = NodePath("../PlayerTwo/HeroArea")
+card_ui_scene = ExtResource("2_bb2iq")
+minion_scene = ExtResource("3_18r40")
+targeting_arrow_scene = ExtResource("4_6y7pd")
+
+[node name="HandContainer" type="HBoxContainer" parent="PlayerOne"]
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -20.0
+offset_top = -120.0
+offset_right = 20.0
+offset_bottom = -80.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_constants/separation = -30
+script = ExtResource("3_bb2iq")
+
+[node name="BoardZone" type="HBoxContainer" parent="PlayerOne"]
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -20.0
+offset_top = -270.0
+offset_right = 20.0
+offset_bottom = -230.0
+grow_horizontal = 2
+grow_vertical = 0
+script = ExtResource("4_18r40")
+
+[node name="HeroArea" type="Control" parent="PlayerOne"]
+layout_mode = 3
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -20.0
+offset_top = -20.0
+offset_right = 20.0
+offset_bottom = 20.0
+grow_horizontal = 2
+grow_vertical = 0
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="TurnButton" type="Button" parent="CanvasLayer"]
+offset_right = 8.0
+offset_bottom = 8.0
+text = "End Turn"
+
+[node name="ManaLabel" type="Label" parent="CanvasLayer"]
+offset_right = 40.0
+offset_bottom = 23.0
+
+[node name="EnemyManaLabel" type="Label" parent="CanvasLayer"]
+offset_right = 40.0
+offset_bottom = 23.0
+
+[node name="TurnIndicator" type="Label" parent="CanvasLayer"]
+offset_right = 40.0
+offset_bottom = 23.0

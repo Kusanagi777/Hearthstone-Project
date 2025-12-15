@@ -1,0 +1,54 @@
+[gd_scene load_steps=2 format=3 uid="uid://632ip3qy3hbl"]
+
+[ext_resource type="Script" uid="uid://xr2k6uspcysl" path="res://Scripts/card_ui.gd" id="1_l756w"]
+
+[node name="CardUI" type="Control"]
+custom_minimum_size = Vector2(120, 170)
+layout_mode = 3
+anchors_preset = 0
+script = ExtResource("1_l756w")
+
+[node name="CardFrame" type="TextureRect" parent="."]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="CardArt" type="TextureRect" parent="CardFrame"]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="NameLabel" type="Label" parent="CardFrame"]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 23.0
+
+[node name="CostLabel" type="Label" parent="CardFrame"]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 23.0
+
+[node name="AttackLabel" type="Label" parent="CardFrame"]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 23.0
+
+[node name="HealthLabel" type="Label" parent="CardFrame"]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 23.0
+
+[node name="DescriptionLabel" type="RichTextLabel" parent="CardFrame"]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="Highlight" type="ColorRect" parent="CardFrame"]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="TypeIcon" type="TextureRect" parent="CardFrame"]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0

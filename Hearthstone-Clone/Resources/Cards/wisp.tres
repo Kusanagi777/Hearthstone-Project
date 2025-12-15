@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3 uid="uid://dlwu61e1elron"]
+
+[ext_resource type="Script" uid="uid://bbch6njxbpjlw" path="res://Resources/card_data.gd" id="1_fd1sy"]
+
+[resource]
+script = ExtResource("1_fd1sy")
+id = "wisp"
+card_name = "Wisp"
+attack = 1
+health = 1
+metadata/_custom_type_script = "uid://bbch6njxbpjlw"
