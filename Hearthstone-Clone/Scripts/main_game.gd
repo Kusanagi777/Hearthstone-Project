@@ -2,8 +2,8 @@
 extends Control
 
 ## Player controllers
-@export var player_one: player_controller
-@export var player_two: player_controller
+@export var player_one: PlayerOneController
+@export var player_two: PlayerTwoController
 
 ## UI Elements - these can be connected in editor or found by path
 @export var turn_button: Button
