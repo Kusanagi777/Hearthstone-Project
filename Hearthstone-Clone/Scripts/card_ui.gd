@@ -1,5 +1,5 @@
 # res://scripts/card_ui.gd
-class_name CardUI
+class_name card_ui
 extends Control
 
 ## Emitted when card is clicked
@@ -20,7 +20,7 @@ enum CardState {
 }
 
 ## The card data this UI represents
-var card_data: CardData
+var card: card_data
 
 ## Owner player ID
 var owner_id: int = 0
@@ -133,8 +133,8 @@ func _apply_default_styles() -> void:
 
 
 ## Initialize the card with data
-func initialize(data: CardData, player_id: int) -> void:
-	card_data = data
+func initialize(data: card_data, player_id: int) -> void:
+	card = data
 	owner_id = player_id
 	
 	# Ensure ready
@@ -160,7 +160,7 @@ func _update_visuals() -> void:
 	
 	# Show/hide attack and health based on card type
 	match card_data.card_type:
-		CardData.CardType.MINION:
+		card_data.CardType.MINION:
 			if attack_label:
 				attack_label.text = str(card_data.attack)
 			if health_label:
@@ -170,7 +170,7 @@ func _update_visuals() -> void:
 			if health_icon:
 				health_icon.visible = true
 		
-		CardData.CardType.WEAPON:
+		card_data.CardType.WEAPON:
 			if attack_label:
 				attack_label.text = str(card_data.attack)
 			if health_label:
@@ -180,7 +180,7 @@ func _update_visuals() -> void:
 			if health_icon:
 				health_icon.visible = true
 		
-		CardData.CardType.SPELL, CardData.CardType.HERO_POWER:
+		card_data.CardType.SPELL, card_data.CardType.HERO_POWER:
 			if attack_icon:
 				attack_icon.visible = false
 			if health_icon:
@@ -205,10 +205,10 @@ func _apply_rarity_styling() -> void:
 		return
 	
 	var rarity_colors := {
-		CardData.Rarity.COMMON: Color(0.5, 0.5, 0.5),
-		CardData.Rarity.RARE: Color(0.0, 0.4, 1.0),
-		CardData.Rarity.EPIC: Color(0.6, 0.2, 0.8),
-		CardData.Rarity.LEGENDARY: Color(1.0, 0.6, 0.0)
+		card_data.Rarity.COMMON: Color(0.5, 0.5, 0.5),
+		card_data.Rarity.RARE: Color(0.0, 0.4, 1.0),
+		card_data.Rarity.EPIC: Color(0.6, 0.2, 0.8),
+		card_data.Rarity.LEGENDARY: Color(1.0, 0.6, 0.0)
 	}
 	
 	var border_color: Color = rarity_colors.get(card_data.rarity, Color(0.6, 0.5, 0.3))

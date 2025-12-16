@@ -18,7 +18,7 @@ func _ready() -> void:
 func get_minions() -> Array[Node]:
 	var minions: Array[Node] = []
 	for child in get_children():
-		if child is Minion:
+		if child is minion:
 			minions.append(child)
 	return minions
 

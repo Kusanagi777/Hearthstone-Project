@@ -1,5 +1,5 @@
 # res://scripts/effects/card_effect_base.gd
-class_name CardEffectBase
+class_name card_effect_base
 extends RefCounted
 
 ## Reference to game manager for accessing game state

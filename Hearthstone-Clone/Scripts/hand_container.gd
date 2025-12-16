@@ -1,5 +1,5 @@
 # res://scripts/hand_container.gd
-class_name HandContainer
+class_name hand_container
 extends HBoxContainer
 
 ## Visual settings
