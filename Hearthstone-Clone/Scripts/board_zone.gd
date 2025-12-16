@@ -1,5 +1,5 @@
 # res://scripts/board_zone.gd
-class_name BoardZone
+class_name board_zone
 extends HBoxContainer
 
 ## Visual settings

@@ -1,5 +1,5 @@
 # res://scripts/targeting_arrow.gd
-class_name TargetingArrow
+class_name targeting_arrow
 extends Node2D
 
 ## Arrow visual settings

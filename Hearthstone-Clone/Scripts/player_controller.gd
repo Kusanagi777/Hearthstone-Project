@@ -1,5 +1,5 @@
 # res://scripts/player_controller.gd
-class_name Player_Controller
+class_name player_controller
 extends Node
 
 ## Emitted when a card in hand is clicked
@@ -125,7 +125,7 @@ func _on_turn_ended(turn_player_id: int) -> void:
 		_ai_thinking = false
 
 
-func _on_card_drawn(draw_player_id: int, card_data: CardData) -> void:
+func _on_card_drawn(draw_player_id: int, card_data: card_data) -> void:
 	if draw_player_id != player_id:
 		return
 	
@@ -134,7 +134,7 @@ func _on_card_drawn(draw_player_id: int, card_data: CardData) -> void:
 
 
 ## Add a card to the visual hand with animation
-func _add_card_to_hand(card_data: CardData) -> void:
+func _add_card_to_hand(card_data: card_data) -> void:
 	if not card_ui_scene:
 		push_error("[PlayerController %d] Card UI scene not set!" % player_id)
 		return
@@ -252,7 +252,7 @@ func _is_position_over_board(global_pos: Vector2) -> bool:
 
 ## Attempt to play a card to the board
 func _try_play_card_to_board(card_ui: Control, target: Variant = null) -> bool:
-	var card_data: CardData = card_ui.card_data
+	var card_data: card_data = card_ui.card_data
 	
 	print("[PlayerController %d] Attempting to play: %s (cost: %d, mana: %d)" % [
 		player_id, 
@@ -267,7 +267,7 @@ func _try_play_card_to_board(card_ui: Control, target: Variant = null) -> bool:
 		_animate_card_play(card_ui)
 		
 		# Spawn minion if it's a minion card
-		if card_data.card_type == CardData.CardType.MINION:
+		if card_data.card_type == card_data.CardType.MINION:
 			# Wait for card to reach board
 			await get_tree().create_timer(0.2).timeout
 			_spawn_minion(card_data, target)
@@ -296,7 +296,7 @@ func _animate_card_play(card_ui: Control) -> void:
 
 
 ## Spawn a minion on the board
-func _spawn_minion(card_data: CardData, target: Variant = null) -> Node:
+func _spawn_minion(card_data: card_data, target: Variant = null) -> Node:
 	if not minion_scene:
 		push_error("[PlayerController %d] Minion scene not set!" % player_id)
 		return null
@@ -329,7 +329,7 @@ func _spawn_minion(card_data: CardData, target: Variant = null) -> Node:
 
 
 ## Apply keyword effects to minion
-func _apply_minion_keywords(minion: Node, card_data: CardData) -> void:
+func _apply_minion_keywords(minion: Node, card_data: card_data) -> void:
 	if card_data.has_keyword("Charge"):
 		minion.just_played = false  # Can attack immediately
 		minion.has_charge = true
@@ -655,20 +655,20 @@ func _ai_play_cards() -> void:
 			if not GameManager.is_player_turn(player_id):
 				break
 			
-			var card_data: CardData = card_ui.card_data
+			var card_data: card_data = card_ui.card_data
 			
 			# Check if we can afford it
 			if GameManager.get_current_mana(player_id) < card_data.cost:
 				continue
 			
 			# Check board space for minions
-			if card_data.card_type == CardData.CardType.MINION:
+			if card_data.card_type == card_data.CardType.MINION:
 				if board_zone.get_child_count() >= GameManager.MAX_BOARD_SIZE:
 					continue
 			
 			# Determine target for spells
 			var target: Variant = null
-			if card_data.card_type == CardData.CardType.SPELL:
+			if card_data.card_type == card_data.CardType.SPELL:
 				target = _ai_choose_spell_target(card_data)
 				if card_data.target_type != "None" and target == null:
 					continue  # Spell requires target but none valid
@@ -696,7 +696,7 @@ func _ai_get_playable_cards() -> Array:
 
 
 ## AI: Choose target for a spell
-func _ai_choose_spell_target(card_data: CardData) -> Variant:
+func _ai_choose_spell_target(card_data: card_data) -> Variant:
 	var enemy_id := GameManager.get_opponent_id(player_id)
 	var enemy_minions := GameManager.get_board(enemy_id)
 	var friendly_minions := GameManager.get_board(player_id)

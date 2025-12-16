@@ -2,8 +2,8 @@
 extends Control
 
 ## Player controllers
-@export var player_one: Player_Controller
-@export var player_two: Player_Controller
+@export var player_one: player_controller
+@export var player_two: player_controller
 
 ## UI Elements - these can be connected in editor or found by path
 @export var turn_button: Button
@@ -28,7 +28,7 @@ extends Control
 @export var enemy_hero_area: Control
 
 ## Test deck (for development)
-@export var test_deck: Array[CardData] = []
+@export var test_deck: Array[card_data] = []
 
 
 func _ready() -> void:
@@ -98,9 +98,9 @@ func _find_nodes_if_needed() -> void:
 	
 	# Player controllers
 	if not player_one:
-		player_one = find_child("PlayerOneController", true, false) as Player_Controller
+		player_one = find_child("PlayerOneController", true, false) as player_controller
 	if not player_two:
-		player_two = find_child("PlayerTwoController", true, false) as Player_Controller
+		player_two = find_child("PlayerTwoController", true, false) as player_controller
 	
 	# Connect player controllers to their zones
 	_setup_player_controllers()
@@ -261,11 +261,11 @@ func _setup_test_game() -> void:
 	GameManager.start_game()
 
 
-func _create_test_deck() -> Array[CardData]:
-	var deck: Array[CardData] = []
+func _create_test_deck() -> Array[card_data]:
+	var deck: Array[card_data] = []
 	
 	# Load card resources from .tres files
-	var card_resources: Array[CardData] = []
+	var card_resources: Array[card_data] = []
 	
 	# Load all available card resources
 	var card_paths := [
@@ -284,7 +284,7 @@ func _create_test_deck() -> Array[CardData]:
 	
 	for path in card_paths:
 		if ResourceLoader.exists(path):
-			var card: CardData = load(path)
+			var card: card_data = load(path)
 			if card:
 				card_resources.append(card)
 				print("[MainGame] Loaded card: %s" % card.card_name)
@@ -302,7 +302,7 @@ func _create_test_deck() -> Array[CardData]:
 	var card_index := 0
 	
 	for i in range(30):
-		var base_card: CardData = card_resources[i % card_resources.size()]
+		var base_card: card_data = card_resources[i % card_resources.size()]
 		deck.append(base_card.duplicate_for_play())
 	
 	print("[MainGame] Created deck with %d cards from %d unique cards" % [deck.size(), card_resources.size()])
@@ -337,7 +337,7 @@ func _on_mana_changed(player_id: int, current: int, maximum: int) -> void:
 		enemy_mana_label.text = mana_text
 
 
-func _on_card_drawn(_player_id: int, _card_data: CardData) -> void:
+func _on_card_drawn(_player_id: int, _card_data: card_data) -> void:
 	_update_deck_counts()
 
 

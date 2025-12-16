@@ -1,6 +1,6 @@
 # res://resources/card_data.gd
 @tool
-class_name CardData
+class_name card_data
 extends Resource
 
 ## Enumeration for card types
@@ -94,8 +94,8 @@ func has_keyword(keyword: String) -> bool:
 
 
 ## Creates a runtime copy of this card data
-func duplicate_for_play() -> CardData:
-	var copy := CardData.new()
+func duplicate_for_play() -> card_data:
+	var copy := card_data.new()
 	copy.id = id + "_" + str(randi())  # Unique instance ID
 	copy.card_name = card_name
 	copy.cost = cost
