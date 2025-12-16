@@ -20,7 +20,7 @@ enum CardState {
 }
 
 ## The card data this UI represents
-var card: card_data
+var card_data: card_data
 
 ## Owner player ID
 var owner_id: int = 0
@@ -49,7 +49,7 @@ const NORMAL_SCALE := 1.0
 const HOVER_Y_OFFSET := -30.0
 
 ## UI References - these match the scene structure
-@onready var card_frame: Panel = $TextureRect
+@onready var card_frame: Panel = $CardFrame
 @onready var highlight: ColorRect = $CardFrame/Highlight
 @onready var art_panel: Panel = $CardFrame/ArtPanel
 @onready var card_art: TextureRect = $CardFrame/ArtPanel/CardArt
@@ -134,7 +134,7 @@ func _apply_default_styles() -> void:
 
 ## Initialize the card with data
 func initialize(data: card_data, player_id: int) -> void:
-	card = data
+	card_data = data
 	owner_id = player_id
 	
 	# Ensure ready
@@ -149,22 +149,24 @@ func initialize(data: card_data, player_id: int) -> void:
 
 ## Update all visual elements from card data
 func _update_visuals() -> void:
-	if not card_data:
+	# Use local typed variable to help type checker
+	var data: card_data = card_data
+	if not data:
 		return
 	
 	if name_label:
-		name_label.text = card_data.card_name
+		name_label.text = data.card_name
 	
 	if cost_label:
-		cost_label.text = str(card_data.cost)
+		cost_label.text = str(data.cost)
 	
 	# Show/hide attack and health based on card type
-	match card_data.card_type:
+	match data.card_type:
 		card_data.CardType.MINION:
 			if attack_label:
-				attack_label.text = str(card_data.attack)
+				attack_label.text = str(data.attack)
 			if health_label:
-				health_label.text = str(card_data.health)
+				health_label.text = str(data.health)
 			if attack_icon:
 				attack_icon.visible = true
 			if health_icon:
@@ -172,9 +174,9 @@ func _update_visuals() -> void:
 		
 		card_data.CardType.WEAPON:
 			if attack_label:
-				attack_label.text = str(card_data.attack)
+				attack_label.text = str(data.attack)
 			if health_label:
-				health_label.text = str(card_data.health)  # Durability
+				health_label.text = str(data.health)  # Durability
 			if attack_icon:
 				attack_icon.visible = true
 			if health_icon:
@@ -187,13 +189,13 @@ func _update_visuals() -> void:
 				health_icon.visible = false
 	
 	if description_label:
-		if card_data.has_method("get_formatted_description"):
-			description_label.text = card_data.get_formatted_description()
+		if data.has_method("get_formatted_description"):
+			description_label.text = data.get_formatted_description()
 		else:
-			description_label.text = card_data.description
+			description_label.text = data.description
 	
-	if card_art and card_data.texture:
-		card_art.texture = card_data.texture
+	if card_art and data.texture:
+		card_art.texture = data.texture
 	
 	# Color-code by rarity
 	_apply_rarity_styling()
@@ -204,6 +206,10 @@ func _apply_rarity_styling() -> void:
 	if not card_frame:
 		return
 	
+	var data: card_data = card_data
+	if not data:
+		return
+	
 	var rarity_colors := {
 		card_data.Rarity.COMMON: Color(0.5, 0.5, 0.5),
 		card_data.Rarity.RARE: Color(0.0, 0.4, 1.0),
@@ -211,7 +217,7 @@ func _apply_rarity_styling() -> void:
 		card_data.Rarity.LEGENDARY: Color(1.0, 0.6, 0.0)
 	}
 	
-	var border_color: Color = rarity_colors.get(card_data.rarity, Color(0.6, 0.5, 0.3))
+	var border_color: Color = rarity_colors.get(data.rarity, Color(0.6, 0.5, 0.3))
 	
 	var current_style = card_frame.get_theme_stylebox("panel")
 	if current_style is StyleBoxFlat:
@@ -222,12 +228,16 @@ func _apply_rarity_styling() -> void:
 
 ## Update visual feedback for whether card is playable
 func _update_playability_visual() -> void:
-	if not is_instance_valid(self) or not card_data:
+	if not is_instance_valid(self):
 		return
 	
-	var can_afford := GameManager.get_current_mana(owner_id) >= card_data.cost
-	var is_turn := GameManager.is_player_turn(owner_id)
-	var is_playable := can_afford and is_turn and is_interactable
+	var data: card_data = card_data
+	if not data:
+		return
+	
+	var can_afford: bool = GameManager.get_current_mana(owner_id) >= data.cost
+	var is_turn: bool = GameManager.is_player_turn(owner_id)
+	var is_playable: bool = can_afford and is_turn and is_interactable
 	
 	# Dim unplayable cards
 	modulate.a = 1.0 if is_playable else 0.6

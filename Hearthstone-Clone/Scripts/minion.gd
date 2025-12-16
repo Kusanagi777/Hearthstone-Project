@@ -9,7 +9,7 @@ signal minion_clicked(minion: Node)
 signal minion_targeted(minion: Node)
 
 ## The original card data
-var card_data: CardData
+var card_data: card_data
 
 ## Owner player ID
 var owner_id: int = 0
@@ -116,7 +116,7 @@ func _apply_default_styles() -> void:
 
 
 ## Initialize the minion with card data
-func initialize(data: CardData, player_id: int) -> void:
+func initialize(data: card_data, player_id: int) -> void:
 	card_data = data
 	owner_id = player_id
 	
@@ -302,7 +302,7 @@ func _on_mouse_exited() -> void:
 
 
 ## Get the card data for graveyard
-func get_card_data() -> CardData:
+func get_card_data() -> card_data:
 	return card_data
 
 

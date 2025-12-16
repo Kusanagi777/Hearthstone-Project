@@ -32,6 +32,7 @@ player_hand_container = NodePath("GameArea/PlayerHandArea/PlayerHandContainer")
 enemy_hand_container = NodePath("GameArea/EnemyHandArea/EnemyHandContainer")
 player_hero_area = NodePath("GameArea/PlayerSection/PlayerHeroArea")
 enemy_hero_area = NodePath("GameArea/EnemySection/EnemyHeroArea")
+test_deck = null
 
 [node name="Background" type="ColorRect" parent="."]
 z_index = -10
