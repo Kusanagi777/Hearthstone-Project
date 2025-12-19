@@ -9,14 +9,14 @@ var game_manager: Node
 var owner_id: int
 
 ## The card data
-var card_data: CardData
+var CardData: CardData
 
 
 ## Called when the card is played (for all card types)
 func on_play(gm: Node, player_id: int, data: CardData, target: Variant) -> void:
 	game_manager = gm
 	owner_id = player_id
-	card_data = data
+	CardData = data
 	_execute_play_effect(target)
 
 
@@ -24,7 +24,7 @@ func on_play(gm: Node, player_id: int, data: CardData, target: Variant) -> void:
 func on_battlecry(gm: Node, player_id: int, data: CardData, target: Variant) -> void:
 	game_manager = gm
 	owner_id = player_id
-	card_data = data
+	CardData = data
 	_execute_battlecry(target)
 
 
@@ -32,7 +32,7 @@ func on_battlecry(gm: Node, player_id: int, data: CardData, target: Variant) -> 
 func on_deathrattle(gm: Node, player_id: int, data: CardData, board_position: int) -> void:
 	game_manager = gm
 	owner_id = player_id
-	card_data = data
+	CardData = data
 	_execute_deathrattle(board_position)
 
 
@@ -101,7 +101,7 @@ func get_enemy_id() -> int:
 	return 1 - owner_id
 
 ## Summon a minion
-func summon_minion(player_id: int, card_data_to_summon: CardData) -> void:
+func summon_minion(player_id: int, CardData_to_summon: CardData) -> void:
 	# This would need access to the player controller
 	# For now, emit a signal that can be handled
-	print("[Effect] Would summon: %s for player %d" % [card_data_to_summon.card_name, player_id])
+	print("[Effect] Would summon: %s for player %d" % [CardData_to_summon.card_name, player_id])

@@ -20,10 +20,10 @@ signal turn_ended(player_id: int)
 signal mana_changed(player_id: int, current: int, maximum: int)
 
 ## Emitted when a card is drawn
-signal card_drawn(player_id: int, card: card_data)
+signal card_drawn(player_id: int, card: CardData)
 
 ## Emitted when a card is played
-signal card_played(player_id: int, card: card_data, target: Variant)
+signal card_played(player_id: int, card: CardData, target: Variant)
 
 ## Emitted when combat occurs
 signal combat_occurred(attacker_data: Dictionary, defender_data: Dictionary)
@@ -35,16 +35,16 @@ signal entity_died(player_id: int, entity_node: Node)
 signal game_ended(winner_id: int)
 
 ## Emitted when a spell is cast
-signal spell_cast(player_id: int, card: card_data, target: Variant)
+signal spell_cast(player_id: int, card: CardData, target: Variant)
 
 ## Emitted when a weapon is equipped
-signal weapon_equipped(player_id: int, card: card_data)
+signal weapon_equipped(player_id: int, card: CardData)
 
 ## Emitted for battlecry triggers
-signal battlecry_triggered(player_id: int, minion: Node, card: card_data)
+signal battlecry_triggered(player_id: int, minion: Node, card: CardData)
 
 ## Emitted for deathrattle triggers
-signal deathrattle_triggered(player_id: int, card: card_data, board_position: int)
+signal deathrattle_triggered(player_id: int, card: CardData, board_position: int)
 
 
 ## Game phase enumeration
@@ -116,11 +116,11 @@ func _initialize_player_data() -> void:
 			"hero_health": 30,
 			"hero_max_health": 30,
 			"hero_armor": 0,
-			"deck": [] as Array[card_data],
-			"hand": [] as Array[card_data],
+			"deck": [] as Array[CardData],
+			"hand": [] as Array[CardData],
 			"board": [] as Array[Node],
-			"graveyard": [] as Array[card_data],
-			"weapon": null,  # card_data or null
+			"graveyard": [] as Array[CardData],
+			"weapon": null,  # CardData or null
 			"weapon_durability": 0,
 			"fatigue_counter": 0
 		})
@@ -142,18 +142,18 @@ func _check_controllers_ready() -> void:
 ## Flush any deferred card draw signals
 func _flush_deferred_draws() -> void:
 	for draw_data in _deferred_draws:
-		card_drawn.emit(draw_data["player_id"], draw_data["card_data"])
+		card_drawn.emit(draw_data["player_id"], draw_data["CardData"])
 	_deferred_draws.clear()
 
 
 ## Setup a player's deck (called before game starts)
-func set_player_deck(player_id: int, deck: Array[card_data]) -> void:
+func set_player_deck(player_id: int, deck: Array[CardData]) -> void:
 	if player_id < 0 or player_id > 1:
 		push_error("Invalid player_id: %d" % player_id)
 		return
 	
 	# Create runtime copies of cards to avoid modifying resources
-	var runtime_deck: Array[card_data] = []
+	var runtime_deck: Array[CardData] = []
 	for card in deck:
 		runtime_deck.append(card.duplicate_for_play())
 	
@@ -207,7 +207,7 @@ func start_game() -> void:
 
 
 ## Draw a card with animation timing
-func _draw_card_animated(player_id: int) -> card_data:
+func _draw_card_animated(player_id: int) -> CardData:
 	var card := _draw_card(player_id)
 	return card
 
@@ -263,7 +263,7 @@ func _execute_play_phase(player_id: int) -> void:
 
 
 ## Draw a card for a player
-func _draw_card(player_id: int) -> card_data:
+func _draw_card(player_id: int) -> CardData:
 	var player_data: Dictionary = players[player_id]
 	var deck: Array = player_data["deck"]
 	var hand: Array = player_data["hand"]
@@ -279,12 +279,12 @@ func _draw_card(player_id: int) -> card_data:
 	
 	if hand.size() >= MAX_HAND_SIZE:
 		# Card burned - overdraw
-		var burned_card: card_data = deck.pop_front()
+		var burned_card: CardData = deck.pop_front()
 		player_data["graveyard"].append(burned_card)
 		print("[GameManager] Player %d burned card: %s" % [player_id, burned_card.card_name])
 		return null
 	
-	var drawn_card: card_data = deck.pop_front()
+	var drawn_card: CardData = deck.pop_front()
 	hand.append(drawn_card)
 	
 	print("[GameManager] Player %d drew: %s" % [player_id, drawn_card.card_name])
@@ -293,13 +293,13 @@ func _draw_card(player_id: int) -> card_data:
 	if _controllers_ready:
 		card_drawn.emit(player_id, drawn_card)
 	else:
-		_deferred_draws.append({"player_id": player_id, "card_data": drawn_card})
+		_deferred_draws.append({"player_id": player_id, "CardData": drawn_card})
 	
 	return drawn_card
 
 
 ## Attempt to play a card from hand
-func try_play_card(player_id: int, card: card_data, target: Variant = null) -> bool:
+func try_play_card(player_id: int, card: CardData, target: Variant = null) -> bool:
 	if player_id != active_player:
 		push_warning("Not this player's turn")
 		return false
@@ -317,16 +317,16 @@ func try_play_card(player_id: int, card: card_data, target: Variant = null) -> b
 	
 	# Type-specific validation
 	match card.card_type:
-		card_data.CardType.MINION:
+		CardData.CardType.MINION:
 			if player_data["board"].size() >= MAX_BOARD_SIZE:
 				push_warning("Board is full")
 				return false
 		
-		card_data.CardType.SPELL:
+		CardData.CardType.SPELL:
 			# Spells may require valid targets - handled by effect scripts
 			pass
 		
-		card_data.CardType.WEAPON:
+		CardData.CardType.WEAPON:
 			# Weapons replace existing weapon
 			pass
 	
@@ -351,15 +351,15 @@ func try_play_card(player_id: int, card: card_data, target: Variant = null) -> b
 	
 	# Handle card type specific logic
 	match card.card_type:
-		card_data.CardType.SPELL:
+		CardData.CardType.SPELL:
 			spell_cast.emit(player_id, card, target)
 			_execute_card_effect(player_id, card, target, "on_play")
 			player_data["graveyard"].append(card)
 		
-		card_data.CardType.WEAPON:
+		CardData.CardType.WEAPON:
 			_equip_weapon(player_id, card)
 		
-		card_data.CardType.MINION:
+		CardData.CardType.MINION:
 			# Minion spawning handled by PlayerController after this returns true
 			pass
 	
@@ -369,7 +369,7 @@ func try_play_card(player_id: int, card: card_data, target: Variant = null) -> b
 
 
 ## Equip a weapon
-func _equip_weapon(player_id: int, card: card_data) -> void:
+func _equip_weapon(player_id: int, card: CardData) -> void:
 	var player_data: Dictionary = players[player_id]
 	
 	# Destroy existing weapon
@@ -383,7 +383,7 @@ func _equip_weapon(player_id: int, card: card_data) -> void:
 
 
 ## Execute a card's effect script
-func _execute_card_effect(player_id: int, card: card_data, target: Variant, trigger: String) -> void:
+func _execute_card_effect(player_id: int, card: CardData, target: Variant, trigger: String) -> void:
 	if card.effect_script.is_empty():
 		return
 	
@@ -402,13 +402,13 @@ func _execute_card_effect(player_id: int, card: card_data, target: Variant, trig
 
 
 ## Trigger battlecry for a minion
-func trigger_battlecry(player_id: int, minion: Node, card: card_data, target: Variant = null) -> void:
+func trigger_battlecry(player_id: int, minion: Node, card: CardData, target: Variant = null) -> void:
 	battlecry_triggered.emit(player_id, minion, card)
 	_execute_card_effect(player_id, card, target, "on_battlecry")
 
 
 ## Trigger deathrattle for a minion
-func trigger_deathrattle(player_id: int, card: card_data, board_position: int) -> void:
+func trigger_deathrattle(player_id: int, card: CardData, board_position: int) -> void:
 	deathrattle_triggered.emit(player_id, card, board_position)
 	_execute_card_effect(player_id, card, board_position, "on_deathrattle")
 
@@ -522,8 +522,8 @@ func _destroy_minion(player_id: int, minion: Node) -> void:
 	remove_minion_from_board(player_id, minion)
 	
 	# Trigger deathrattle before removing
-	if minion.has_method("get_card_data"):
-		var minion_card: card_data = minion.get_card_data()
+	if minion.has_method("get_CardData"):
+		var minion_card: CardData = minion.get_CardData()
 		if minion_card and "Deathrattle" in minion_card.tags:
 			trigger_deathrattle(player_id, minion_card, board_position)
 		players[player_id]["graveyard"].append(minion_card)
