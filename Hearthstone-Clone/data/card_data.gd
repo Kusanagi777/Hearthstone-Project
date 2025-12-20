@@ -1,4 +1,4 @@
-# res://resources/CardData.gd
+# res://data/CardData.gd
 class_name CardData
 extends Resource
 
