@@ -9,7 +9,7 @@ signal minion_clicked(minion: Node)
 signal minion_targeted(minion: Node)
 
 ## The original card data
-var CardData: CardData
+var card_data: CardData
 
 ## Owner player ID
 var owner_id: int = 0
@@ -117,7 +117,7 @@ func _apply_default_styles() -> void:
 
 ## Initialize the minion with card data
 func initialize(data: CardData, player_id: int) -> void:
-	CardData = data
+	card_data = data
 	owner_id = player_id
 	
 	current_attack = data.attack
@@ -132,18 +132,18 @@ func initialize(data: CardData, player_id: int) -> void:
 
 ## Parse keywords from card data
 func _parse_keywords() -> void:
-	if not CardData:
+	if not card_data:
 		return
 	
-	has_charge = CardData.has_keyword("Charge")
-	has_rush = CardData.has_keyword("Rush")
-	has_taunt = CardData.has_keyword("Taunt")
-	has_divine_shield = CardData.has_keyword("Divine Shield")
-	has_windfury = CardData.has_keyword("Windfury")
-	has_stealth = CardData.has_keyword("Stealth")
-	has_lifesteal = CardData.has_keyword("Lifesteal")
-	has_poisonous = CardData.has_keyword("Poisonous")
-	has_reborn = CardData.has_keyword("Reborn")
+	has_charge = card_data.has_keyword("Charge")
+	has_rush = card_data.has_keyword("Rush")
+	has_taunt = card_data.has_keyword("Taunt")
+	has_divine_shield = card_data.has_keyword("Divine Shield")
+	has_windfury = card_data.has_keyword("Windfury")
+	has_stealth = card_data.has_keyword("Stealth")
+	has_lifesteal = card_data.has_keyword("Lifesteal")
+	has_poisonous = card_data.has_keyword("Poisonous")
+	has_reborn = card_data.has_keyword("Reborn")
 	
 	# Charge lets you attack immediately
 	if has_charge:
@@ -152,18 +152,18 @@ func _parse_keywords() -> void:
 
 ## Update visual display
 func _update_visuals() -> void:
-	if card_art and CardData and CardData.texture:
-		card_art.texture = CardData.texture
+	if card_art and card_data and card_data.texture:
+		card_art.texture = card_data.texture
 	
-	if name_label and CardData:
-		name_label.text = CardData.card_name
+	if name_label and card_data:
+		name_label.text = card_data.card_name
 	
 	if attack_label:
 		attack_label.text = str(current_attack)
 		# Color code if different from base
-		if CardData and current_attack > CardData.attack:
+		if card_data and current_attack > card_data.attack:
 			attack_label.add_theme_color_override("font_color", Color.GREEN)
-		elif CardData and current_attack < CardData.attack:
+		elif card_data and current_attack < card_data.attack:
 			attack_label.add_theme_color_override("font_color", Color.RED)
 		else:
 			attack_label.add_theme_color_override("font_color", Color.WHITE)
@@ -302,8 +302,8 @@ func _on_mouse_exited() -> void:
 
 
 ## Get the card data for graveyard
-func get_CardData() -> CardData:
-	return CardData
+func get_card_data() -> CardData:
+	return card_data
 
 
 ## Set whether this minion is a valid attack target

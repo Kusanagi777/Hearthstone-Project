@@ -267,10 +267,10 @@ func _create_test_deck() -> Array[CardData]:
 	# Load card resources from .tres files
 	var card_resources: Array[CardData] = []
 	
-	# Load all available card resources
+	# Load all available card resources - FIXED PATH FOR Bat.tres
 	var card_paths := [
 		"res://Resources/Cards/wisp.tres",
-		"res://Resources/Cards/Cards/Bat.tres",
+		"res://Resources/Cards/Bat.tres",
 		"res://Resources/Cards/Brawler.tres",
 		"res://Resources/Cards/Wolf.tres",
 		"res://Resources/Cards/warrior.tres",
@@ -337,7 +337,7 @@ func _on_mana_changed(player_id: int, current: int, maximum: int) -> void:
 		enemy_mana_label.text = mana_text
 
 
-func _on_card_drawn(_player_id: int, _CardData: CardData) -> void:
+func _on_card_drawn(_player_id: int, _card: CardData) -> void:
 	_update_deck_counts()
 
 

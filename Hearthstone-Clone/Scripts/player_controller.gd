@@ -143,76 +143,76 @@ func _add_card_to_hand(card: CardData) -> void:
 		push_error("[PlayerController %d] Hand container not set!" % player_id)
 		return
 	
-	var card_ui: Control = card_ui_scene.instantiate()
+	var card_ui_instance: Control = card_ui_scene.instantiate()
 	
 	# For AI/opponent, cards might be hidden
 	if is_ai and player_id == GameManager.PLAYER_TWO:
 		# Could implement face-down cards here
 		pass
 	
-	hand_container.add_child(card_ui)
-	card_ui.initialize(card, player_id)
+	hand_container.add_child(card_ui_instance)
+	card_ui_instance.initialize(card, player_id)
 	
 	# Connect card signals
-	if card_ui.has_signal("card_clicked"):
-		card_ui.card_clicked.connect(_on_card_clicked)
-	if card_ui.has_signal("card_drag_started"):
-		card_ui.card_drag_started.connect(_on_card_drag_started)
-	if card_ui.has_signal("card_drag_ended"):
-		card_ui.card_drag_ended.connect(_on_card_drag_ended)
+	if card_ui_instance.has_signal("card_clicked"):
+		card_ui_instance.card_clicked.connect(_on_card_clicked)
+	if card_ui_instance.has_signal("card_drag_started"):
+		card_ui_instance.card_drag_started.connect(_on_card_drag_started)
+	if card_ui_instance.has_signal("card_drag_ended"):
+		card_ui_instance.card_drag_ended.connect(_on_card_drag_ended)
 	
 	# Play draw animation
-	_animate_card_draw(card_ui)
+	_animate_card_draw(card_ui_instance)
 	
 	print("[PlayerController %d] Card added to hand, hand size: %d" % [player_id, hand_container.get_child_count()])
 
 
 ## Animate card drawing from deck to hand
-func _animate_card_draw(card_ui: Control) -> void:
+func _animate_card_draw(card_ui_instance: Control) -> void:
 	# Store the target position before modifying
-	var end_pos := card_ui.position
+	var end_pos := card_ui_instance.position
 	
 	# Start from right side of screen (local coordinates)
 	var start_x := 500.0  # Start off to the right
-	card_ui.position = Vector2(start_x, 0)
+	card_ui_instance.position = Vector2(start_x, 0)
 	
-	card_ui.modulate.a = 0.0
-	card_ui.scale = Vector2(0.5, 0.5)
+	card_ui_instance.modulate.a = 0.0
+	card_ui_instance.scale = Vector2(0.5, 0.5)
 	
 	var tween := create_tween()
 	tween.set_parallel(true)
 	tween.set_ease(Tween.EASE_OUT)
 	tween.set_trans(Tween.TRANS_BACK)
 	
-	tween.tween_property(card_ui, "modulate:a", 1.0, 0.3)
-	tween.tween_property(card_ui, "scale", Vector2.ONE, 0.4)
-	tween.tween_property(card_ui, "position", end_pos, 0.4)
+	tween.tween_property(card_ui_instance, "modulate:a", 1.0, 0.3)
+	tween.tween_property(card_ui_instance, "scale", Vector2.ONE, 0.4)
+	tween.tween_property(card_ui_instance, "position", end_pos, 0.4)
 
 
 ## Handle card click
-func _on_card_clicked(card_ui: Control) -> void:
+func _on_card_clicked(card_ui_instance: Control) -> void:
 	if is_ai:
 		return
 	
 	if not GameManager.is_player_turn(player_id):
 		return
 	
-	card_selected.emit(card_ui)
+	card_selected.emit(card_ui_instance)
 
 
 ## Handle drag start
-func _on_card_drag_started(card_ui: Control) -> void:
+func _on_card_drag_started(card_ui_instance: Control) -> void:
 	if is_ai:
 		return
 	
 	if not GameManager.is_player_turn(player_id):
 		return
 	
-	_dragged_card = card_ui
+	_dragged_card = card_ui_instance
 
 
 ## Handle drag end
-func _on_card_drag_ended(card_ui: Control, global_pos: Vector2) -> void:
+func _on_card_drag_ended(card_ui_instance: Control, global_pos: Vector2) -> void:
 	if not _dragged_card:
 		return
 	
@@ -251,8 +251,8 @@ func _is_position_over_board(global_pos: Vector2) -> bool:
 
 
 ## Attempt to play a card to the board
-func _try_play_card_to_board(card_ui: Control, target: Variant = null) -> bool:
-	var card: CardData = card_ui.CardData
+func _try_play_card_to_board(card_ui_instance: Control, target: Variant = null) -> bool:
+	var card: CardData = card_ui_instance.card_data
 	
 	print("[PlayerController %d] Attempting to play: %s (cost: %d, mana: %d)" % [
 		player_id, 
@@ -264,7 +264,7 @@ func _try_play_card_to_board(card_ui: Control, target: Variant = null) -> bool:
 	if GameManager.try_play_card(player_id, card, target):
 		print("[PlayerController %d] Card play successful!" % player_id)
 		# Remove from hand visually with animation
-		_animate_card_play(card_ui)
+		_animate_card_play(card_ui_instance)
 		
 		# Spawn minion if it's a minion card
 		if card.card_type == CardData.CardType.MINION:
@@ -276,23 +276,23 @@ func _try_play_card_to_board(card_ui: Control, target: Variant = null) -> bool:
 	else:
 		print("[PlayerController %d] Card play failed!" % player_id)
 		# Failed to play - return to hand
-		card_ui.return_to_hand()
+		card_ui_instance.return_to_hand()
 		return false
 
 
 ## Animate card being played
-func _animate_card_play(card_ui: Control) -> void:
+func _animate_card_play(card_ui_instance: Control) -> void:
 	# Make sure card is in top_level for smooth animation
-	if not card_ui.top_level:
-		var gpos := card_ui.global_position
-		card_ui.top_level = true
-		card_ui.global_position = gpos
+	if not card_ui_instance.top_level:
+		var gpos := card_ui_instance.global_position
+		card_ui_instance.top_level = true
+		card_ui_instance.global_position = gpos
 	
 	var tween := create_tween()
 	tween.set_parallel(true)
-	tween.tween_property(card_ui, "modulate:a", 0.0, 0.2)
-	tween.tween_property(card_ui, "scale", Vector2(1.5, 1.5), 0.2)
-	tween.tween_callback(card_ui.queue_free).set_delay(0.2)
+	tween.tween_property(card_ui_instance, "modulate:a", 0.0, 0.2)
+	tween.tween_property(card_ui_instance, "scale", Vector2(1.5, 1.5), 0.2)
+	tween.tween_callback(card_ui_instance.queue_free).set_delay(0.2)
 
 
 ## Spawn a minion on the board
@@ -301,98 +301,98 @@ func _spawn_minion(card: CardData, target: Variant = null) -> Node:
 		push_error("[PlayerController %d] Minion scene not set!" % player_id)
 		return null
 	
-	var minion: Node = minion_scene.instantiate()
-	board_zone.add_child(minion)
-	minion.initialize(card, player_id)
+	var minion_instance: Node = minion_scene.instantiate()
+	board_zone.add_child(minion_instance)
+	minion_instance.initialize(card, player_id)
 	
 	# Apply keywords
-	_apply_minion_keywords(minion, card)
+	_apply_minion_keywords(minion_instance, card)
 	
 	# Connect minion signals
-	if minion.has_signal("minion_clicked"):
-		minion.minion_clicked.connect(_on_minion_clicked)
-	if minion.has_signal("minion_targeted"):
-		minion.minion_targeted.connect(_on_minion_targeted)
+	if minion_instance.has_signal("minion_clicked"):
+		minion_instance.minion_clicked.connect(_on_minion_clicked)
+	if minion_instance.has_signal("minion_targeted"):
+		minion_instance.minion_targeted.connect(_on_minion_targeted)
 	
 	# Register with GameManager
-	GameManager.register_minion_on_board(player_id, minion)
+	GameManager.register_minion_on_board(player_id, minion_instance)
 	
 	# Trigger battlecry if applicable
 	if card.has_keyword("Battlecry"):
-		GameManager.trigger_battlecry(player_id, minion, card, target)
+		GameManager.trigger_battlecry(player_id, minion_instance, card, target)
 	
 	# Play summon animation
-	_animate_minion_summon(minion)
+	_animate_minion_summon(minion_instance)
 	
 	print("[PlayerController %d] Spawned minion: %s" % [player_id, card.card_name])
-	return minion
+	return minion_instance
 
 
 ## Apply keyword effects to minion
-func _apply_minion_keywords(minion: Node, card: CardData) -> void:
+func _apply_minion_keywords(minion_instance: Node, card: CardData) -> void:
 	if card.has_keyword("Charge"):
-		minion.just_played = false  # Can attack immediately
-		minion.has_charge = true
+		minion_instance.just_played = false  # Can attack immediately
+		minion_instance.has_charge = true
 	
 	if card.has_keyword("Rush"):
-		minion.just_played = false  # Can attack minions immediately
-		minion.has_rush = true
+		minion_instance.just_played = false  # Can attack minions immediately
+		minion_instance.has_rush = true
 	
 	if card.has_keyword("Taunt"):
-		minion.has_taunt = true
+		minion_instance.has_taunt = true
 	
 	if card.has_keyword("Divine Shield"):
-		minion.has_divine_shield = true
+		minion_instance.has_divine_shield = true
 	
 	if card.has_keyword("Windfury"):
-		minion.has_windfury = true
+		minion_instance.has_windfury = true
 	
 	if card.has_keyword("Stealth"):
-		minion.has_stealth = true
+		minion_instance.has_stealth = true
 	
 	if card.has_keyword("Lifesteal"):
-		minion.has_lifesteal = true
+		minion_instance.has_lifesteal = true
 	
 	if card.has_keyword("Poisonous"):
-		minion.has_poisonous = true
+		minion_instance.has_poisonous = true
 	
 	if card.has_keyword("Reborn"):
-		minion.has_reborn = true
+		minion_instance.has_reborn = true
 
 
 ## Animate minion summoning
-func _animate_minion_summon(minion: Node) -> void:
-	minion.modulate.a = 0.0
-	minion.scale = Vector2(0.1, 0.1)
+func _animate_minion_summon(minion_instance: Node) -> void:
+	minion_instance.modulate.a = 0.0
+	minion_instance.scale = Vector2(0.1, 0.1)
 	
 	var tween := create_tween()
 	tween.set_ease(Tween.EASE_OUT)
 	tween.set_trans(Tween.TRANS_ELASTIC)
 	
-	tween.tween_property(minion, "modulate:a", 1.0, 0.2)
-	tween.parallel().tween_property(minion, "scale", Vector2.ONE, 0.4)
+	tween.tween_property(minion_instance, "modulate:a", 1.0, 0.2)
+	tween.parallel().tween_property(minion_instance, "scale", Vector2.ONE, 0.4)
 
 
 ## Handle minion click (for attacking)
-func _on_minion_clicked(minion: Node) -> void:
+func _on_minion_clicked(minion_instance: Node) -> void:
 	if is_ai:
 		return
 	
 	if not GameManager.is_player_turn(player_id):
 		return
 	
-	if minion.owner_id != player_id:
+	if minion_instance.owner_id != player_id:
 		# Clicking enemy minion while targeting
 		if _selected_attacker:
-			_on_minion_targeted(minion)
+			_on_minion_targeted(minion_instance)
 		return
 	
-	if not minion.can_attack():
+	if not minion_instance.can_attack():
 		return
 	
 	# Start targeting mode
-	_selected_attacker = minion
-	_start_targeting(minion)
+	_selected_attacker = minion_instance
+	_start_targeting(minion_instance)
 	_highlight_valid_targets()
 
 
@@ -405,10 +405,10 @@ func _highlight_valid_targets() -> void:
 	var taunts := GameManager.get_taunt_minions(enemy_id)
 	
 	# Highlight enemy minions
-	for minion in enemy_board_zone.get_children():
-		if minion.has_method("set_targetable"):
-			var is_valid := taunts.is_empty() or minion in taunts
-			minion.set_targetable(is_valid)
+	for minion_instance in enemy_board_zone.get_children():
+		if minion_instance.has_method("set_targetable"):
+			var is_valid := taunts.is_empty() or minion_instance in taunts
+			minion_instance.set_targetable(is_valid)
 	
 	# Highlight hero if no taunts (and attacker doesn't have Rush)
 	if enemy_hero_area and taunts.is_empty():
@@ -420,9 +420,9 @@ func _highlight_valid_targets() -> void:
 ## Clear target highlights
 func _clear_target_highlights() -> void:
 	if enemy_board_zone:
-		for minion in enemy_board_zone.get_children():
-			if minion.has_method("set_targetable"):
-				minion.set_targetable(false)
+		for minion_instance in enemy_board_zone.get_children():
+			if minion_instance.has_method("set_targetable"):
+				minion_instance.set_targetable(false)
 
 
 ## Start targeting mode with an arrow
@@ -446,35 +446,35 @@ func _cancel_targeting() -> void:
 
 
 ## Handle minion being targeted
-func _on_minion_targeted(minion: Node) -> void:
+func _on_minion_targeted(minion_instance: Node) -> void:
 	if not _selected_attacker:
 		return
 	
 	# Can only target enemy minions
-	if minion.owner_id == player_id:
+	if minion_instance.owner_id == player_id:
 		_cancel_targeting()
 		return
 	
 	# Check taunt rules
-	if not GameManager.is_valid_attack_target(player_id, minion):
+	if not GameManager.is_valid_attack_target(player_id, minion_instance):
 		print("[PlayerController %d] Invalid target - must attack taunt!" % player_id)
 		return
 	
 	# Execute combat with animation
-	await _animate_attack(_selected_attacker, minion)
-	GameManager.execute_combat(_selected_attacker, minion)
+	await _animate_attack(_selected_attacker, minion_instance)
+	GameManager.execute_combat(_selected_attacker, minion_instance)
 	_cancel_targeting()
 
 
 ## Animate attack
 func _animate_attack(attacker: Node, target: Node) -> void:
-	var original_pos: Vector2 = attacker.position
-	var target_pos: Vector2 = attacker.get_parent().to_local(target.global_position)
-	var bump_pos: Vector2 = original_pos.lerp(target_pos, 0.7)
+	var original_pos: Vector2 = attacker.global_position
+	var target_global_pos: Vector2 = target.global_position
+	var bump_pos: Vector2 = original_pos.lerp(target_global_pos, 0.7)
 	
 	var tween := create_tween()
-	tween.tween_property(attacker, "position", bump_pos, 0.15).set_ease(Tween.EASE_IN)
-	tween.tween_property(attacker, "position", original_pos, 0.15).set_ease(Tween.EASE_OUT)
+	tween.tween_property(attacker, "global_position", bump_pos, 0.15).set_ease(Tween.EASE_IN)
+	tween.tween_property(attacker, "global_position", original_pos, 0.15).set_ease(Tween.EASE_OUT)
 	
 	await tween.finished
 
@@ -504,13 +504,13 @@ func target_enemy_hero() -> void:
 
 ## Animate attacking hero
 func _animate_attack_hero(attacker: Node) -> void:
-	var original_pos: Vector2 = attacker.position
+	var original_pos: Vector2 = attacker.global_position
 	var bump_direction := Vector2.UP if player_id == 0 else Vector2.DOWN
 	var bump_pos: Vector2 = original_pos + bump_direction * 100
 	
 	var tween := create_tween()
-	tween.tween_property(attacker, "position", bump_pos, 0.15).set_ease(Tween.EASE_IN)
-	tween.tween_property(attacker, "position", original_pos, 0.15).set_ease(Tween.EASE_OUT)
+	tween.tween_property(attacker, "global_position", bump_pos, 0.15).set_ease(Tween.EASE_IN)
+	tween.tween_property(attacker, "global_position", original_pos, 0.15).set_ease(Tween.EASE_OUT)
 	
 	await tween.finished
 
@@ -536,9 +536,9 @@ func _check_attack_target(global_pos: Vector2) -> void:
 	
 	# Check enemy minions
 	if enemy_board_zone:
-		for minion in enemy_board_zone.get_children():
-			if minion is Control and minion.get_global_rect().has_point(global_pos):
-				_on_minion_targeted(minion)
+		for minion_instance in enemy_board_zone.get_children():
+			if minion_instance is Control and minion_instance.get_global_rect().has_point(global_pos):
+				_on_minion_targeted(minion_instance)
 				return
 	
 	# Clicked nothing valid
@@ -556,9 +556,9 @@ func _enable_hand_interaction(enabled: bool) -> void:
 	if not hand_container:
 		return
 	
-	for card_ui in hand_container.get_children():
-		if card_ui.has_method("set_interactable"):
-			card_ui.set_interactable(enabled)
+	for card_ui_instance in hand_container.get_children():
+		if card_ui_instance.has_method("set_interactable"):
+			card_ui_instance.set_interactable(enabled)
 
 
 ## Refresh board minions (reset attack availability)
@@ -566,9 +566,9 @@ func _refresh_board_minions() -> void:
 	if not board_zone:
 		return
 	
-	for minion in board_zone.get_children():
-		if minion.has_method("refresh_for_turn"):
-			minion.refresh_for_turn()
+	for minion_instance in board_zone.get_children():
+		if minion_instance.has_method("refresh_for_turn"):
+			minion_instance.refresh_for_turn()
 
 
 ## Clear the hand visually
@@ -649,13 +649,13 @@ func _ai_play_cards() -> void:
 			break
 		
 		# Sort by cost descending
-		playable_cards.sort_custom(func(a, b): return a.CardData.cost > b.CardData.cost)
+		playable_cards.sort_custom(func(a, b): return a.card_data.cost > b.card_data.cost)
 		
-		for card_ui in playable_cards:
+		for card_ui_instance in playable_cards:
 			if not GameManager.is_player_turn(player_id):
 				break
 			
-			var card: CardData = card_ui.CardData
+			var card: CardData = card_ui_instance.card_data
 			
 			# Check if we can afford it
 			if GameManager.get_current_mana(player_id) < card.cost:
@@ -676,7 +676,7 @@ func _ai_play_cards() -> void:
 			# Play the card
 			print("[AI Player %d] Playing: %s" % [player_id, card.card_name])
 			
-			if await _try_play_card_to_board(card_ui, target):
+			if await _try_play_card_to_board(card_ui_instance, target):
 				played_card = true
 				await get_tree().create_timer(ai_action_delay).timeout
 				break  # Re-evaluate after playing
@@ -687,10 +687,10 @@ func _ai_get_playable_cards() -> Array:
 	var playable: Array = []
 	var current_mana := GameManager.get_current_mana(player_id)
 	
-	for card_ui in hand_container.get_children():
-		if card_ui.has_method("get") and card_ui.CardData:
-			if card_ui.CardData.cost <= current_mana:
-				playable.append(card_ui)
+	for card_ui_instance in hand_container.get_children():
+		if card_ui_instance.has_method("get") and card_ui_instance.card_data:
+			if card_ui_instance.card_data.cost <= current_mana:
+				playable.append(card_ui_instance)
 	
 	return playable
 
@@ -732,9 +732,9 @@ func _ai_attack_with_minions() -> void:
 	
 	# Get minions that can attack
 	var attackers: Array = []
-	for minion in board_zone.get_children():
-		if minion.has_method("can_attack") and minion.can_attack():
-			attackers.append(minion)
+	for minion_instance in board_zone.get_children():
+		if minion_instance.has_method("can_attack") and minion_instance.can_attack():
+			attackers.append(minion_instance)
 	
 	for attacker in attackers:
 		if not GameManager.is_player_turn(player_id):

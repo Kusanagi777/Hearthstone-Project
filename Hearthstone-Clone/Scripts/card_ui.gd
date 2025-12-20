@@ -20,7 +20,7 @@ enum CardState {
 }
 
 ## The card data this UI represents
-var CardData: CardData
+var card_data: CardData
 
 ## Owner player ID
 var owner_id: int = 0
@@ -134,7 +134,7 @@ func _apply_default_styles() -> void:
 
 ## Initialize the card with data
 func initialize(data: CardData, player_id: int) -> void:
-	CardData = data
+	card_data = data
 	owner_id = player_id
 	
 	# Ensure ready
@@ -149,24 +149,22 @@ func initialize(data: CardData, player_id: int) -> void:
 
 ## Update all visual elements from card data
 func _update_visuals() -> void:
-	# Use local typed variable to help type checker
-	var data: CardData = CardData
-	if not data:
+	if not card_data:
 		return
 	
 	if name_label:
-		name_label.text = data.card_name
+		name_label.text = card_data.card_name
 	
 	if cost_label:
-		cost_label.text = str(data.cost)
+		cost_label.text = str(card_data.cost)
 	
 	# Show/hide attack and health based on card type
-	match data.card_type:
+	match card_data.card_type:
 		CardData.CardType.MINION:
 			if attack_label:
-				attack_label.text = str(data.attack)
+				attack_label.text = str(card_data.attack)
 			if health_label:
-				health_label.text = str(data.health)
+				health_label.text = str(card_data.health)
 			if attack_icon:
 				attack_icon.visible = true
 			if health_icon:
@@ -174,9 +172,9 @@ func _update_visuals() -> void:
 		
 		CardData.CardType.WEAPON:
 			if attack_label:
-				attack_label.text = str(data.attack)
+				attack_label.text = str(card_data.attack)
 			if health_label:
-				health_label.text = str(data.health)  # Durability
+				health_label.text = str(card_data.health)  # Durability
 			if attack_icon:
 				attack_icon.visible = true
 			if health_icon:
@@ -189,13 +187,13 @@ func _update_visuals() -> void:
 				health_icon.visible = false
 	
 	if description_label:
-		if data.has_method("get_formatted_description"):
-			description_label.text = data.get_formatted_description()
+		if card_data.has_method("get_formatted_description"):
+			description_label.text = card_data.get_formatted_description()
 		else:
-			description_label.text = data.description
+			description_label.text = card_data.description
 	
-	if card_art and data.texture:
-		card_art.texture = data.texture
+	if card_art and card_data.texture:
+		card_art.texture = card_data.texture
 	
 	# Color-code by rarity
 	_apply_rarity_styling()
@@ -206,8 +204,7 @@ func _apply_rarity_styling() -> void:
 	if not card_frame:
 		return
 	
-	var data: CardData = CardData
-	if not data:
+	if not card_data:
 		return
 	
 	var rarity_colors := {
@@ -217,7 +214,7 @@ func _apply_rarity_styling() -> void:
 		CardData.Rarity.LEGENDARY: Color(1.0, 0.6, 0.0)
 	}
 	
-	var border_color: Color = rarity_colors.get(data.rarity, Color(0.6, 0.5, 0.3))
+	var border_color: Color = rarity_colors.get(card_data.rarity, Color(0.6, 0.5, 0.3))
 	
 	var current_style = card_frame.get_theme_stylebox("panel")
 	if current_style is StyleBoxFlat:
@@ -231,11 +228,10 @@ func _update_playability_visual() -> void:
 	if not is_instance_valid(self):
 		return
 	
-	var data: CardData = CardData
-	if not data:
+	if not card_data:
 		return
 	
-	var can_afford: bool = GameManager.get_current_mana(owner_id) >= data.cost
+	var can_afford: bool = GameManager.get_current_mana(owner_id) >= card_data.cost
 	var is_turn: bool = GameManager.is_player_turn(owner_id)
 	var is_playable: bool = can_afford and is_turn and is_interactable
 	

@@ -142,7 +142,7 @@ func _check_controllers_ready() -> void:
 ## Flush any deferred card draw signals
 func _flush_deferred_draws() -> void:
 	for draw_data in _deferred_draws:
-		card_drawn.emit(draw_data["player_id"], draw_data["CardData"])
+		card_drawn.emit(draw_data["player_id"], draw_data["card_data"])
 	_deferred_draws.clear()
 
 
@@ -293,7 +293,7 @@ func _draw_card(player_id: int) -> CardData:
 	if _controllers_ready:
 		card_drawn.emit(player_id, drawn_card)
 	else:
-		_deferred_draws.append({"player_id": player_id, "CardData": drawn_card})
+		_deferred_draws.append({"player_id": player_id, "card_data": drawn_card})
 	
 	return drawn_card
 
@@ -522,8 +522,8 @@ func _destroy_minion(player_id: int, minion: Node) -> void:
 	remove_minion_from_board(player_id, minion)
 	
 	# Trigger deathrattle before removing
-	if minion.has_method("get_CardData"):
-		var minion_card: CardData = minion.get_CardData()
+	if minion.has_method("get_card_data"):
+		var minion_card: CardData = minion.get_card_data()
 		if minion_card and "Deathrattle" in minion_card.tags:
 			trigger_deathrattle(player_id, minion_card, board_position)
 		players[player_id]["graveyard"].append(minion_card)
