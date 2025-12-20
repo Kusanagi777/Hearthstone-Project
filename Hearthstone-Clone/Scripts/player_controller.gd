@@ -62,6 +62,11 @@ var _selected_attacker: Node = null
 ## Is AI currently taking its turn?
 var _ai_thinking: bool = false
 
+## Base card spacing (designed for 1280x720)
+const BASE_CARD_SPACING := -30.0
+const BASE_MINION_SPACING := 10.0
+const REFERENCE_HEIGHT := 720.0
+
 
 func _ready() -> void:
 	# Wait for tree to be ready before connecting signals
@@ -74,10 +79,43 @@ func _ready() -> void:
 func _deferred_ready() -> void:
 	_connect_signals()
 	
+	# Apply responsive spacing
+	_apply_responsive_spacing()
+	
 	# Notify GameManager that this controller is ready
 	GameManager.register_controller_ready()
 	
+	# Connect to viewport size changes
+	get_viewport().size_changed.connect(_on_viewport_size_changed)
+	
 	print("[PlayerController %d] Ready, is_ai: %s" % [player_id, is_ai])
+
+
+## Calculate scale factor based on viewport size
+func get_scale_factor() -> float:
+	var viewport_size := DisplayServer.window_get_size()
+	var height_scale := viewport_size.y / REFERENCE_HEIGHT
+	return clampf(height_scale, 1.0, 3.0)
+
+
+## Apply responsive spacing to containers
+func _apply_responsive_spacing() -> void:
+	var scale_factor := get_scale_factor()
+	
+	# Scale hand container spacing
+	if hand_container and hand_container is HBoxContainer:
+		var scaled_spacing := int(BASE_CARD_SPACING * scale_factor)
+		hand_container.add_theme_constant_override("separation", scaled_spacing)
+	
+	# Scale board zone spacing
+	if board_zone and board_zone is HBoxContainer:
+		var scaled_spacing := int(BASE_MINION_SPACING * scale_factor)
+		board_zone.add_theme_constant_override("separation", scaled_spacing)
+
+
+## Handle viewport resize
+func _on_viewport_size_changed() -> void:
+	_apply_responsive_spacing()
 
 
 func _connect_signals() -> void:
@@ -172,8 +210,8 @@ func _animate_card_draw(card_ui_instance: Control) -> void:
 	# Store the target position before modifying
 	var end_pos := card_ui_instance.position
 	
-	# Start from right side of screen (local coordinates)
-	var start_x := 500.0  # Start off to the right
+	# Start from right side of screen (local coordinates) - scale with viewport
+	var start_x := 500.0 * get_scale_factor()
 	card_ui_instance.position = Vector2(start_x, 0)
 	
 	card_ui_instance.modulate.a = 0.0
@@ -506,7 +544,8 @@ func target_enemy_hero() -> void:
 func _animate_attack_hero(attacker: Node) -> void:
 	var original_pos: Vector2 = attacker.global_position
 	var bump_direction := Vector2.UP if player_id == 0 else Vector2.DOWN
-	var bump_pos: Vector2 = original_pos + bump_direction * 100
+	var bump_distance := 100.0 * get_scale_factor()
+	var bump_pos: Vector2 = original_pos + bump_direction * bump_distance
 	
 	var tween := create_tween()
 	tween.tween_property(attacker, "global_position", bump_pos, 0.15).set_ease(Tween.EASE_IN)

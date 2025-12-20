@@ -30,6 +30,9 @@ extends Control
 ## Test deck (for development)
 @export var test_deck: Array[CardData] = []
 
+## Reference resolution for scaling
+const REFERENCE_HEIGHT := 720.0
+
 
 func _ready() -> void:
 	# Ensure this control is visible
@@ -42,6 +45,9 @@ func _ready() -> void:
 	# Apply visual styling
 	_apply_styling()
 	
+	# Apply responsive font sizes
+	_apply_responsive_fonts()
+	
 	# Hide game over panel
 	if game_over_panel:
 		game_over_panel.visible = false
@@ -51,9 +57,55 @@ func _ready() -> void:
 	
 	_connect_signals()
 	
+	# Connect to viewport resize
+	get_viewport().size_changed.connect(_on_viewport_size_changed)
+	
 	# Delay game start to ensure all nodes are ready
 	await get_tree().create_timer(0.5).timeout
 	_setup_test_game()
+
+
+## Calculate scale factor based on viewport size
+func get_scale_factor() -> float:
+	var viewport_size := DisplayServer.window_get_size()
+	var height_scale := viewport_size.y / REFERENCE_HEIGHT
+	return clampf(height_scale, 1.0, 3.0)
+
+
+## Handle viewport resize
+func _on_viewport_size_changed() -> void:
+	_apply_responsive_fonts()
+
+
+## Apply responsive font sizes based on viewport
+func _apply_responsive_fonts() -> void:
+	var scale_factor := get_scale_factor()
+	
+	# Scale turn indicator font
+	if turn_indicator:
+		turn_indicator.add_theme_font_size_override("font_size", int(18 * scale_factor))
+	
+	# Scale health labels
+	if player_health_label:
+		player_health_label.add_theme_font_size_override("font_size", int(16 * scale_factor))
+	if enemy_health_label:
+		enemy_health_label.add_theme_font_size_override("font_size", int(16 * scale_factor))
+	
+	# Scale mana labels
+	if mana_label:
+		mana_label.add_theme_font_size_override("font_size", int(14 * scale_factor))
+	if enemy_mana_label:
+		enemy_mana_label.add_theme_font_size_override("font_size", int(14 * scale_factor))
+	
+	# Scale deck labels
+	if player_deck_label:
+		player_deck_label.add_theme_font_size_override("font_size", int(12 * scale_factor))
+	if enemy_deck_label:
+		enemy_deck_label.add_theme_font_size_override("font_size", int(12 * scale_factor))
+	
+	# Scale winner label
+	if winner_label:
+		winner_label.add_theme_font_size_override("font_size", int(24 * scale_factor))
 
 
 ## Find UI nodes if they weren't assigned in inspector

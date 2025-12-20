@@ -40,6 +40,18 @@ var has_reborn: bool = false
 ## Attack tracking (for Windfury)
 var attacks_this_turn: int = 0
 
+## Base minion size (designed for 1280x720)
+const BASE_MINION_SIZE := Vector2(80, 100)
+const REFERENCE_HEIGHT := 720.0
+
+## Base font sizes for scaling
+const BASE_FONT_SIZES := {
+	"name": 9,
+	"stats": 12,
+	"damage": 20,
+	"sleeping": 10
+}
+
 ## UI References - match the scene structure
 @onready var taunt_border: Panel = $TauntBorder
 @onready var frame: Panel = $Frame
@@ -59,6 +71,9 @@ var attacks_this_turn: int = 0
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	
+	# Apply responsive sizing
+	_apply_responsive_size()
+	
 	# Apply default styling
 	_apply_default_styles()
 	
@@ -73,6 +88,46 @@ func _ready() -> void:
 	
 	# Connect to turn events
 	GameManager.turn_started.connect(_on_turn_started)
+	
+	# Connect to viewport size changes
+	get_viewport().size_changed.connect(_on_viewport_size_changed)
+
+
+## Calculate scale factor based on viewport size
+static func get_scale_factor() -> float:
+	var viewport_size := DisplayServer.window_get_size()
+	var height_scale := viewport_size.y / REFERENCE_HEIGHT
+	return clampf(height_scale, 1.0, 3.0)
+
+
+## Apply responsive sizing based on viewport
+func _apply_responsive_size() -> void:
+	var scale_factor := get_scale_factor()
+	var scaled_size := BASE_MINION_SIZE * scale_factor
+	custom_minimum_size = scaled_size
+	size = scaled_size
+	
+	# Scale fonts
+	_apply_scaled_fonts(scale_factor)
+
+
+## Apply scaled font sizes
+func _apply_scaled_fonts(scale_factor: float) -> void:
+	if name_label:
+		name_label.add_theme_font_size_override("font_size", int(BASE_FONT_SIZES["name"] * scale_factor))
+	if attack_label:
+		attack_label.add_theme_font_size_override("font_size", int(BASE_FONT_SIZES["stats"] * scale_factor))
+	if health_label:
+		health_label.add_theme_font_size_override("font_size", int(BASE_FONT_SIZES["stats"] * scale_factor))
+	if damage_label:
+		damage_label.add_theme_font_size_override("font_size", int(BASE_FONT_SIZES["damage"] * scale_factor))
+	if sleeping_icon:
+		sleeping_icon.add_theme_font_size_override("font_size", int(BASE_FONT_SIZES["sleeping"] * scale_factor))
+
+
+## Handle viewport resize
+func _on_viewport_size_changed() -> void:
+	_apply_responsive_size()
 
 
 ## Apply default styles to panels (can be overridden in editor)

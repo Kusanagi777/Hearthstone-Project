@@ -48,6 +48,18 @@ const HOVER_SCALE := 1.15
 const NORMAL_SCALE := 1.0
 const HOVER_Y_OFFSET := -30.0
 
+## Base card size (designed for 1280x720)
+const BASE_CARD_SIZE := Vector2(120, 170)
+const REFERENCE_HEIGHT := 720.0
+
+## Base font sizes for scaling
+const BASE_FONT_SIZES := {
+	"cost": 14,
+	"name": 11,
+	"stats": 14,
+	"description": 10
+}
+
 ## UI References - these match the scene structure
 @onready var card_frame: Panel = $CardFrame
 @onready var highlight: ColorRect = $CardFrame/Highlight
@@ -72,6 +84,9 @@ func _ready() -> void:
 	# Set up mouse handling
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	
+	# Apply responsive sizing
+	_apply_responsive_size()
+	
 	# Apply default styling to panels
 	_apply_default_styles()
 	
@@ -89,6 +104,48 @@ func _ready() -> void:
 		GameManager.mana_changed.connect(_on_mana_changed)
 	if not GameManager.turn_started.is_connected(_on_turn_started):
 		GameManager.turn_started.connect(_on_turn_started)
+	
+	# Connect to viewport size changes
+	get_viewport().size_changed.connect(_on_viewport_size_changed)
+
+
+## Calculate scale factor based on viewport size
+static func get_scale_factor() -> float:
+	var viewport_size := DisplayServer.window_get_size()
+	# Use the height for consistent scaling
+	var height_scale := viewport_size.y / REFERENCE_HEIGHT
+	# Clamp to reasonable bounds (don't scale below 1.0 or above 3.0)
+	return clampf(height_scale, 1.0, 3.0)
+
+
+## Apply responsive sizing based on viewport
+func _apply_responsive_size() -> void:
+	var scale_factor := get_scale_factor()
+	var scaled_size := BASE_CARD_SIZE * scale_factor
+	custom_minimum_size = scaled_size
+	size = scaled_size
+	
+	# Scale fonts
+	_apply_scaled_fonts(scale_factor)
+
+
+## Apply scaled font sizes
+func _apply_scaled_fonts(scale_factor: float) -> void:
+	if cost_label:
+		cost_label.add_theme_font_size_override("font_size", int(BASE_FONT_SIZES["cost"] * scale_factor))
+	if name_label:
+		name_label.add_theme_font_size_override("font_size", int(BASE_FONT_SIZES["name"] * scale_factor))
+	if attack_label:
+		attack_label.add_theme_font_size_override("font_size", int(BASE_FONT_SIZES["stats"] * scale_factor))
+	if health_label:
+		health_label.add_theme_font_size_override("font_size", int(BASE_FONT_SIZES["stats"] * scale_factor))
+	if description_label:
+		description_label.add_theme_font_size_override("normal_font_size", int(BASE_FONT_SIZES["description"] * scale_factor))
+
+
+## Handle viewport resize
+func _on_viewport_size_changed() -> void:
+	_apply_responsive_size()
 
 
 ## Apply default styles to panels (can be overridden in editor)
@@ -297,11 +354,13 @@ func _enter_hover() -> void:
 	global_position = _hand_position
 	z_index = 100
 	
+	var hover_y_offset := HOVER_Y_OFFSET * get_scale_factor()
+	
 	var tween := create_tween()
 	tween.set_parallel(true)
 	tween.set_ease(Tween.EASE_OUT)
 	tween.tween_property(self, "scale", Vector2.ONE * HOVER_SCALE, 0.1)
-	tween.tween_property(self, "global_position:y", global_position.y + HOVER_Y_OFFSET, 0.1)
+	tween.tween_property(self, "global_position:y", global_position.y + hover_y_offset, 0.1)
 
 
 ## Exit hover state
