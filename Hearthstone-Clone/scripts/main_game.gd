@@ -346,7 +346,7 @@ func _create_test_deck() -> Array[CardData]:
 			push_warning("[MainGame] Card resource not found: %s" % path)
 	
 	if card_resources.is_empty():
-		push_error("[MainGame] No card resources found! Check your Resources folder.")
+		push_error("[MainGame] No card resources found! Check your resources folder.")
 		return deck
 	
 	# Fill deck with 30 cards (multiple copies of each card)

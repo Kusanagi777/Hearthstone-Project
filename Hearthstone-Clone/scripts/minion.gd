@@ -1,5 +1,5 @@
 # res://scripts/minion.gd
-class_name minions
+class_name minion
 extends Control
 
 ## Emitted when this minion is clicked

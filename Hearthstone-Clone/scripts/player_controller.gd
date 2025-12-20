@@ -207,16 +207,22 @@ func _add_card_to_hand(card: CardData) -> void:
 
 ## Animate card drawing from deck to hand
 func _animate_card_draw(card_ui_instance: Control) -> void:
-	# Store the target position before modifying
-	var end_pos := card_ui_instance.position
-	
-	# Start from right side of screen (local coordinates) - scale with viewport
-	var start_x := 500.0 * get_scale_factor()
-	card_ui_instance.position = Vector2(start_x, 0)
-	
+	# Start invisible and off to the side
 	card_ui_instance.modulate.a = 0.0
 	card_ui_instance.scale = Vector2(0.5, 0.5)
 	
+	# Wait for the container to calculate the proper position
+	await get_tree().process_frame
+	await get_tree().process_frame
+	
+	# Now capture the correct target position after layout
+	var end_pos := card_ui_instance.position
+	
+	# Move to start position (right side, in local coordinates)
+	var start_x := 500.0 * get_scale_factor()
+	card_ui_instance.position = Vector2(start_x, 0)
+	
+	# Animate to the correct hand position
 	var tween := create_tween()
 	tween.set_parallel(true)
 	tween.set_ease(Tween.EASE_OUT)

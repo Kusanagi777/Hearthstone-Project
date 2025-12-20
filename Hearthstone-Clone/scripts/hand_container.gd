@@ -49,6 +49,6 @@ func _arrange_cards() -> void:
 func get_cards() -> Array[Control]:
 	var cards: Array[Control] = []
 	for child in get_children():
-		if child is CardUI:
+		if child is card_ui:
 			cards.append(child)
 	return cards

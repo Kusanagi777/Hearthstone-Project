@@ -1,5 +1,4 @@
 # res://resources/CardData.gd
-@tool
 class_name CardData
 extends Resource
 
