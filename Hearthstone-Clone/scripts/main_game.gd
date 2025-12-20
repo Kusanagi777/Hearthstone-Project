@@ -321,17 +321,17 @@ func _create_test_deck() -> Array[CardData]:
 	
 	# Load all available card resources - FIXED PATH FOR Bat.tres
 	var card_paths := [
-		"res://Resources/Cards/wisp.tres",
-		"res://Resources/Cards/Bat.tres",
-		"res://Resources/Cards/Brawler.tres",
-		"res://Resources/Cards/Wolf.tres",
-		"res://Resources/Cards/warrior.tres",
-		"res://Resources/Cards/juggernaut.tres",
-		"res://Resources/Cards/mage.tres",
-		"res://Resources/Cards/werewolf.tres",
-		"res://Resources/Cards/golem.tres",
-		"res://Resources/Cards/demon.tres",
-		"res://Resources/Cards/dragon.tres",
+		"res://resources/Cards/wisp.tres",
+		"res://resources/Cards/Bat.tres",
+		"res://resources/Cards/Brawler.tres",
+		"res://resources/Cards/Wolf.tres",
+		"res://resources/Cards/warrior.tres",
+		"res://resources/Cards/juggernaut.tres",
+		"res://resources/Cards/mage.tres",
+		"res://resources/Cards/werewolf.tres",
+		"res://resources/Cards/golem.tres",
+		"res://resources/Cards/demon.tres",
+		"res://resources/Cards/dragon.tres",
 	]
 	
 	for path in card_paths:
