@@ -5,7 +5,7 @@ extends Control
 @export var player_one: player_controller
 @export var player_two: player_controller
 
-## UI Elements - these can be connected in editor or found by path
+## UI Elements
 @export var turn_button: Button
 @export var mana_label: Label
 @export var enemy_mana_label: Label
@@ -17,9 +17,7 @@ extends Control
 @export var game_over_panel: Panel
 @export var winner_label: Label
 
-## Board zones
-@export var player_board_zone: Control
-@export var enemy_board_zone: Control
+## Hand containers
 @export var player_hand_container: Control
 @export var enemy_hand_container: Control
 
@@ -37,9 +35,14 @@ const REFERENCE_HEIGHT := 720.0
 var selected_class: Dictionary = {}
 var selected_deck: Dictionary = {}
 
+## Lane references - populated in _ready
+var player_front_lanes: Array[Control] = []
+var player_back_lanes: Array[Control] = []
+var enemy_front_lanes: Array[Control] = []
+var enemy_back_lanes: Array[Control] = []
+
 
 func _ready() -> void:
-	# Ensure this control is visible
 	visible = true
 	modulate.a = 1.0
 	
@@ -52,78 +55,141 @@ func _ready() -> void:
 		selected_deck = GameManager.get_meta("selected_deck")
 		print("[MainGame] Using deck: %s" % selected_deck.get("name", "Unknown"))
 	
-	# Try to find nodes if not assigned in inspector
 	_find_nodes_if_needed()
-	
-	# Apply visual styling
+	_setup_lanes()
 	_apply_styling()
-	
-	# Apply responsive font sizes
 	_apply_responsive_fonts()
 	
-	# Hide game over panel
 	if game_over_panel:
 		game_over_panel.visible = false
 	
-	# Wait for tree to be fully ready
 	await get_tree().process_frame
 	
 	_connect_signals()
-	
-	# Connect to viewport resize
 	get_viewport().size_changed.connect(_on_viewport_size_changed)
 	
-	# Delay game start to ensure all nodes are ready
 	await get_tree().create_timer(0.5).timeout
 	_setup_test_game()
 
 
-## Calculate scale factor based on viewport size
+func _setup_lanes() -> void:
+	# Find player front lanes
+	var player_front_container = find_child("PlayerFrontLanes", true, false)
+	if player_front_container:
+		for i in range(3):
+			var lane = player_front_container.get_child(i)
+			if lane:
+				player_front_lanes.append(lane)
+				_style_lane_panel(lane, true, true, i)
+	
+	# Find player back lanes
+	var player_back_container = find_child("PlayerBackLanes", true, false)
+	if player_back_container:
+		for i in range(3):
+			var lane = player_back_container.get_child(i)
+			if lane:
+				player_back_lanes.append(lane)
+				_style_lane_panel(lane, true, false, i)
+	
+	# Find enemy front lanes
+	var enemy_front_container = find_child("EnemyFrontLanes", true, false)
+	if enemy_front_container:
+		for i in range(3):
+			var lane = enemy_front_container.get_child(i)
+			if lane:
+				enemy_front_lanes.append(lane)
+				_style_lane_panel(lane, false, true, i)
+	
+	# Find enemy back lanes
+	var enemy_back_container = find_child("EnemyBackLanes", true, false)
+	if enemy_back_container:
+		for i in range(3):
+			var lane = enemy_back_container.get_child(i)
+			if lane:
+				enemy_back_lanes.append(lane)
+				_style_lane_panel(lane, false, false, i)
+	
+	# Pass lane references to player controllers
+	if player_one:
+		player_one.front_lanes = player_front_lanes
+		player_one.back_lanes = player_back_lanes
+		player_one.enemy_front_lanes = enemy_front_lanes
+		player_one.enemy_back_lanes = enemy_back_lanes
+	
+	if player_two:
+		player_two.front_lanes = enemy_front_lanes
+		player_two.back_lanes = enemy_back_lanes
+		player_two.enemy_front_lanes = player_front_lanes
+		player_two.enemy_back_lanes = player_back_lanes
+	
+	print("[MainGame] Lanes setup: Player front=%d, back=%d | Enemy front=%d, back=%d" % [
+		player_front_lanes.size(), player_back_lanes.size(),
+		enemy_front_lanes.size(), enemy_back_lanes.size()
+	])
+
+
+func _style_lane_panel(lane: Control, is_player: bool, is_front: bool, lane_index: int) -> void:
+	if not lane is PanelContainer:
+		return
+	
+	var panel := lane as PanelContainer
+	var style := StyleBoxFlat.new()
+	
+	# Color coding: front rows are brighter, back rows are darker
+	if is_player:
+		if is_front:
+			style.bg_color = Color(0.15, 0.22, 0.18, 0.7)  # Greenish for player front
+		else:
+			style.bg_color = Color(0.12, 0.16, 0.14, 0.5)  # Darker for player back
+	else:
+		if is_front:
+			style.bg_color = Color(0.22, 0.15, 0.15, 0.7)  # Reddish for enemy front
+		else:
+			style.bg_color = Color(0.16, 0.12, 0.12, 0.5)  # Darker for enemy back
+	
+	style.border_color = Color(0.4, 0.4, 0.35, 0.6)
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(6)
+	panel.add_theme_stylebox_override("panel", style)
+	
+	# Store lane metadata
+	panel.set_meta("lane_index", lane_index)
+	panel.set_meta("is_front", is_front)
+	panel.set_meta("is_player", is_player)
+
+
 func get_scale_factor() -> float:
 	var viewport_size := DisplayServer.window_get_size()
 	var height_scale := viewport_size.y / REFERENCE_HEIGHT
 	return clampf(height_scale, 1.0, 3.0)
 
 
-## Handle viewport resize
 func _on_viewport_size_changed() -> void:
 	_apply_responsive_fonts()
 
 
-## Apply responsive font sizes based on viewport
 func _apply_responsive_fonts() -> void:
 	var scale_factor := get_scale_factor()
 	
-	# Scale turn indicator font
 	if turn_indicator:
-		turn_indicator.add_theme_font_size_override("font_size", int(18 * scale_factor))
-	
-	# Scale health labels
+		turn_indicator.add_theme_font_size_override("font_size", int(16 * scale_factor))
 	if player_health_label:
-		player_health_label.add_theme_font_size_override("font_size", int(16 * scale_factor))
+		player_health_label.add_theme_font_size_override("font_size", int(14 * scale_factor))
 	if enemy_health_label:
-		enemy_health_label.add_theme_font_size_override("font_size", int(16 * scale_factor))
-	
-	# Scale mana labels
+		enemy_health_label.add_theme_font_size_override("font_size", int(14 * scale_factor))
 	if mana_label:
-		mana_label.add_theme_font_size_override("font_size", int(14 * scale_factor))
+		mana_label.add_theme_font_size_override("font_size", int(12 * scale_factor))
 	if enemy_mana_label:
-		enemy_mana_label.add_theme_font_size_override("font_size", int(14 * scale_factor))
-	
-	# Scale deck labels
+		enemy_mana_label.add_theme_font_size_override("font_size", int(12 * scale_factor))
 	if player_deck_label:
 		player_deck_label.add_theme_font_size_override("font_size", int(12 * scale_factor))
 	if enemy_deck_label:
 		enemy_deck_label.add_theme_font_size_override("font_size", int(12 * scale_factor))
-	
-	# Scale winner label
 	if winner_label:
 		winner_label.add_theme_font_size_override("font_size", int(24 * scale_factor))
 
 
-## Find UI nodes if they weren't assigned in inspector
 func _find_nodes_if_needed() -> void:
-	# Try to find nodes from our scene structure
 	if not turn_button:
 		turn_button = find_child("TurnButton", true, false) as Button
 	if not mana_label:
@@ -144,76 +210,58 @@ func _find_nodes_if_needed() -> void:
 		game_over_panel = find_child("GameOverPanel", true, false) as Panel
 	if not winner_label:
 		winner_label = find_child("WinnerLabel", true, false) as Label
-	
-	# Board zones
-	if not player_board_zone:
-		player_board_zone = find_child("PlayerBoard", true, false) as Control
-	if not enemy_board_zone:
-		enemy_board_zone = find_child("EnemyBoard", true, false) as Control
 	if not player_hand_container:
 		player_hand_container = find_child("PlayerHandContainer", true, false) as Control
 	if not enemy_hand_container:
 		enemy_hand_container = find_child("EnemyHandContainer", true, false) as Control
-	
-	# Hero areas
 	if not player_hero_area:
 		player_hero_area = find_child("PlayerHeroArea", true, false) as Control
 	if not enemy_hero_area:
 		enemy_hero_area = find_child("EnemyHeroArea", true, false) as Control
-	
-	# Player controllers
 	if not player_one:
 		player_one = find_child("PlayerOneController", true, false) as player_controller
 	if not player_two:
 		player_two = find_child("PlayerTwoController", true, false) as player_controller
 	
-	# Connect player controllers to their zones
 	_setup_player_controllers()
 
 
-## Setup player controllers with their zones
 func _setup_player_controllers() -> void:
 	if player_one:
 		player_one.player_id = 0
 		player_one.hand_container = player_hand_container
-		player_one.board_zone = player_board_zone
-		player_one.enemy_board_zone = enemy_board_zone
 		player_one.enemy_hero_area = enemy_hero_area
 		player_one.hero_area = player_hero_area
 	
 	if player_two:
 		player_two.player_id = 1
 		player_two.hand_container = enemy_hand_container
-		player_two.board_zone = enemy_board_zone
-		player_two.enemy_board_zone = player_board_zone
 		player_two.enemy_hero_area = player_hero_area
 		player_two.hero_area = enemy_hero_area
 
 
-## Apply visual styling to UI elements
 func _apply_styling() -> void:
-	# Style board zones
-	_style_panel_container(find_child("PlayerBoardZone", true, false) as Control, Color(0.15, 0.2, 0.15, 0.5))
-	_style_panel_container(find_child("EnemyBoardZone", true, false) as Control, Color(0.2, 0.15, 0.15, 0.5))
-	
 	# Style hand areas
 	_style_panel_container(find_child("PlayerHandArea", true, false) as Control, Color(0.1, 0.12, 0.18, 0.7))
 	_style_panel_container(find_child("EnemyHandArea", true, false) as Control, Color(0.18, 0.1, 0.1, 0.5))
+	
+	# Style row containers
+	_style_panel_container(find_child("PlayerFrontRow", true, false) as Control, Color(0.1, 0.15, 0.12, 0.3))
+	_style_panel_container(find_child("PlayerBackRow", true, false) as Control, Color(0.08, 0.1, 0.09, 0.3))
+	_style_panel_container(find_child("EnemyFrontRow", true, false) as Control, Color(0.15, 0.1, 0.1, 0.3))
+	_style_panel_container(find_child("EnemyBackRow", true, false) as Control, Color(0.1, 0.08, 0.08, 0.3))
 	
 	# Style hero areas
 	_style_hero_panel(player_hero_area, true)
 	_style_hero_panel(enemy_hero_area, false)
 	
-	# Style turn button
 	if turn_button:
 		_style_button(turn_button)
 	
-	# Style game over panel
 	if game_over_panel:
 		_style_game_over_panel()
 
 
-## Style a panel container
 func _style_panel_container(container: Control, bg_color: Color) -> void:
 	if not container or not container is PanelContainer:
 		return
@@ -222,13 +270,12 @@ func _style_panel_container(container: Control, bg_color: Color) -> void:
 	if not panel.has_theme_stylebox_override("panel"):
 		var style := StyleBoxFlat.new()
 		style.bg_color = bg_color
-		style.border_color = Color(0.4, 0.4, 0.3, 0.6)
-		style.set_border_width_all(2)
-		style.set_corner_radius_all(8)
+		style.border_color = Color(0.4, 0.4, 0.3, 0.4)
+		style.set_border_width_all(1)
+		style.set_corner_radius_all(6)
 		panel.add_theme_stylebox_override("panel", style)
 
 
-## Style hero panel
 func _style_hero_panel(hero: Control, is_player: bool) -> void:
 	if not hero or not hero is PanelContainer:
 		return
@@ -237,7 +284,6 @@ func _style_hero_panel(hero: Control, is_player: bool) -> void:
 	if not panel.has_theme_stylebox_override("panel"):
 		var style := StyleBoxFlat.new()
 		if is_player:
-			# Use class color if available
 			if not selected_class.is_empty():
 				var class_color: Color = selected_class.get("color", Color(0.15, 0.2, 0.25))
 				style.bg_color = class_color.darkened(0.7)
@@ -246,20 +292,11 @@ func _style_hero_panel(hero: Control, is_player: bool) -> void:
 		else:
 			style.bg_color = Color(0.25, 0.15, 0.15)
 		style.border_color = Color(0.5, 0.45, 0.35)
-		style.set_border_width_all(3)
-		style.set_corner_radius_all(10)
+		style.set_border_width_all(2)
+		style.set_corner_radius_all(8)
 		panel.add_theme_stylebox_override("panel", style)
-	
-	# Style the portrait
-	var portrait := hero.find_child("Portrait", true, false) as Panel
-	if portrait and not portrait.has_theme_stylebox_override("panel"):
-		var portrait_style := StyleBoxFlat.new()
-		portrait_style.bg_color = Color(0.3, 0.3, 0.35)
-		portrait_style.set_corner_radius_all(30)
-		portrait.add_theme_stylebox_override("panel", portrait_style)
 
 
-## Style buttons
 func _style_button(button: Button) -> void:
 	if button.has_theme_stylebox_override("normal"):
 		return
@@ -286,7 +323,6 @@ func _style_button(button: Button) -> void:
 	button.add_theme_color_override("font_color", Color.WHITE)
 
 
-## Style game over panel
 func _style_game_over_panel() -> void:
 	if not game_over_panel or game_over_panel.has_theme_stylebox_override("panel"):
 		return
@@ -311,50 +347,36 @@ func _connect_signals() -> void:
 			turn_button.pressed.connect(_on_turn_button_pressed)
 		turn_button.text = "End Turn"
 		turn_button.visible = true
-		print("[MainGame] Turn button connected")
 
 
 func _setup_test_game() -> void:
 	print("[MainGame] Setting up game...")
 	
-	# Use selected deck if available, otherwise use test deck
 	var player_deck: Array[CardData] = []
 	
 	if not selected_deck.is_empty() and selected_deck.has("cards"):
 		player_deck = _build_deck_from_selection(selected_deck["cards"])
-		print("[MainGame] Built deck '%s' with %d cards" % [selected_deck.get("name", "Custom"), player_deck.size()])
 	else:
-		# Create test deck if none provided
 		if test_deck.is_empty():
 			test_deck = _create_test_deck()
 		player_deck = test_deck.duplicate()
-		print("[MainGame] Using test deck with %d cards" % player_deck.size())
 	
-	# Enemy always uses test deck for now
 	var enemy_deck: Array[CardData] = _create_test_deck()
 	
-	# Set up both players
 	GameManager.set_player_deck(0, player_deck)
 	GameManager.set_player_deck(1, enemy_deck)
 	
-	# Apply class-specific health if a class was selected
 	if not selected_class.is_empty():
 		var class_health: int = selected_class.get("health", 30)
 		GameManager.players[0]["hero_health"] = class_health
 		GameManager.players[0]["hero_max_health"] = class_health
-		print("[MainGame] Player health set to %d (class: %s)" % [class_health, selected_class.get("name", "Unknown")])
 	
-	print("[MainGame] Decks set, starting game...")
-	
-	# Start the game
 	GameManager.start_game()
 
 
-## Build a deck from card IDs in the selection
 func _build_deck_from_selection(card_ids: Array) -> Array[CardData]:
 	var deck: Array[CardData] = []
 	
-	# Map of card IDs to their resource paths
 	var card_paths := {
 		"wisp": "res://data/Cards/wisp.tres",
 		"bat": "res://data/Cards/Bat.tres",
@@ -372,28 +394,20 @@ func _build_deck_from_selection(card_ids: Array) -> Array[CardData]:
 	for card_id in card_ids:
 		var path: String = card_paths.get(card_id, "")
 		if path.is_empty():
-			push_warning("[MainGame] Unknown card ID: %s" % card_id)
 			continue
 		
 		if ResourceLoader.exists(path):
 			var card: CardData = load(path)
 			if card:
 				deck.append(card.duplicate_for_play())
-			else:
-				push_warning("[MainGame] Failed to load card: %s" % path)
-		else:
-			push_warning("[MainGame] Card resource not found: %s" % path)
 	
 	return deck
 
 
 func _create_test_deck() -> Array[CardData]:
 	var deck: Array[CardData] = []
-	
-	# Load card resources from .tres files
 	var card_resources: Array[CardData] = []
 	
-	# Load all available card resources
 	var card_paths := [
 		"res://data/Cards/wisp.tres",
 		"res://data/Cards/Bat.tres",
@@ -413,28 +427,18 @@ func _create_test_deck() -> Array[CardData]:
 			var card: CardData = load(path)
 			if card:
 				card_resources.append(card)
-				print("[MainGame] Loaded card: %s" % card.card_name)
-			else:
-				push_warning("[MainGame] Failed to load card at: %s" % path)
-		else:
-			push_warning("[MainGame] Card resource not found: %s" % path)
 	
 	if card_resources.is_empty():
-		push_error("[MainGame] No card resources found! Check your resources folder.")
 		return deck
 	
-	# Fill deck with 30 cards (multiple copies of each card)
 	for i in range(30):
 		var base_card: CardData = card_resources[i % card_resources.size()]
 		deck.append(base_card.duplicate_for_play())
 	
-	print("[MainGame] Created deck with %d cards from %d unique cards" % [deck.size(), card_resources.size()])
 	return deck
 
 
 func _on_turn_started(player_id: int) -> void:
-	print("[MainGame] Turn started for player %d" % player_id)
-	
 	if turn_indicator:
 		if player_id == 0:
 			turn_indicator.text = "Your Turn"
@@ -443,7 +447,6 @@ func _on_turn_started(player_id: int) -> void:
 			turn_indicator.text = "Enemy Turn"
 			turn_indicator.add_theme_color_override("font_color", Color.RED)
 	
-	# Only enable turn button for player one (human player)
 	if turn_button:
 		turn_button.disabled = (player_id != 0)
 	
@@ -483,14 +486,11 @@ func _update_deck_counts() -> void:
 
 
 func _on_turn_button_pressed() -> void:
-	print("[MainGame] End turn button pressed")
 	if player_one:
 		player_one.request_end_turn()
 
 
 func _on_game_ended(winner_id: int) -> void:
-	print("[MainGame] Game Over! Player %d wins!" % winner_id)
-	
 	if game_over_panel:
 		game_over_panel.visible = true
 		if winner_label:
@@ -503,16 +503,13 @@ func _on_game_ended(winner_id: int) -> void:
 
 
 func _input(event: InputEvent) -> void:
-	# Debug shortcut: Press Space to end turn
 	if event is InputEventKey and event.pressed:
 		if event.keycode == KEY_SPACE:
 			if GameManager.is_player_turn(0):
 				_on_turn_button_pressed()
 		elif event.keycode == KEY_D:
-			# Debug: Draw a card
 			if GameManager.is_player_turn(0):
 				GameManager._draw_card(0)
 		elif event.keycode == KEY_ESCAPE:
-			# Return to start screen
 			GameManager.reset_game()
 			get_tree().change_scene_to_file("res://scenes/start_screen.tscn")
