@@ -33,11 +33,24 @@ extends Control
 ## Reference resolution for scaling
 const REFERENCE_HEIGHT := 720.0
 
+## Selected class and deck from character selection
+var selected_class: Dictionary = {}
+var selected_deck: Dictionary = {}
+
 
 func _ready() -> void:
 	# Ensure this control is visible
 	visible = true
 	modulate.a = 1.0
+	
+	# Get selected class and deck from GameManager metadata
+	if GameManager.has_meta("selected_class"):
+		selected_class = GameManager.get_meta("selected_class")
+		print("[MainGame] Playing as class: %s" % selected_class.get("name", "Unknown"))
+	
+	if GameManager.has_meta("selected_deck"):
+		selected_deck = GameManager.get_meta("selected_deck")
+		print("[MainGame] Using deck: %s" % selected_deck.get("name", "Unknown"))
 	
 	# Try to find nodes if not assigned in inspector
 	_find_nodes_if_needed()
@@ -224,7 +237,12 @@ func _style_hero_panel(hero: Control, is_player: bool) -> void:
 	if not panel.has_theme_stylebox_override("panel"):
 		var style := StyleBoxFlat.new()
 		if is_player:
-			style.bg_color = Color(0.15, 0.2, 0.25)
+			# Use class color if available
+			if not selected_class.is_empty():
+				var class_color: Color = selected_class.get("color", Color(0.15, 0.2, 0.25))
+				style.bg_color = class_color.darkened(0.7)
+			else:
+				style.bg_color = Color(0.15, 0.2, 0.25)
 		else:
 			style.bg_color = Color(0.25, 0.15, 0.15)
 		style.border_color = Color(0.5, 0.45, 0.35)
@@ -297,20 +315,76 @@ func _connect_signals() -> void:
 
 
 func _setup_test_game() -> void:
-	print("[MainGame] Setting up test game...")
+	print("[MainGame] Setting up game...")
 	
-	# Create test decks if none provided
-	if test_deck.is_empty():
-		test_deck = _create_test_deck()
+	# Use selected deck if available, otherwise use test deck
+	var player_deck: Array[CardData] = []
 	
-	# Set up both players with the test deck
-	GameManager.set_player_deck(0, test_deck.duplicate())
-	GameManager.set_player_deck(1, test_deck.duplicate())
+	if not selected_deck.is_empty() and selected_deck.has("cards"):
+		player_deck = _build_deck_from_selection(selected_deck["cards"])
+		print("[MainGame] Built deck '%s' with %d cards" % [selected_deck.get("name", "Custom"), player_deck.size()])
+	else:
+		# Create test deck if none provided
+		if test_deck.is_empty():
+			test_deck = _create_test_deck()
+		player_deck = test_deck.duplicate()
+		print("[MainGame] Using test deck with %d cards" % player_deck.size())
+	
+	# Enemy always uses test deck for now
+	var enemy_deck: Array[CardData] = _create_test_deck()
+	
+	# Set up both players
+	GameManager.set_player_deck(0, player_deck)
+	GameManager.set_player_deck(1, enemy_deck)
+	
+	# Apply class-specific health if a class was selected
+	if not selected_class.is_empty():
+		var class_health: int = selected_class.get("health", 30)
+		GameManager.players[0]["hero_health"] = class_health
+		GameManager.players[0]["hero_max_health"] = class_health
+		print("[MainGame] Player health set to %d (class: %s)" % [class_health, selected_class.get("name", "Unknown")])
 	
 	print("[MainGame] Decks set, starting game...")
 	
 	# Start the game
 	GameManager.start_game()
+
+
+## Build a deck from card IDs in the selection
+func _build_deck_from_selection(card_ids: Array) -> Array[CardData]:
+	var deck: Array[CardData] = []
+	
+	# Map of card IDs to their resource paths
+	var card_paths := {
+		"wisp": "res://data/Cards/wisp.tres",
+		"bat": "res://data/Cards/Bat.tres",
+		"brawler": "res://data/Cards/Brawler.tres",
+		"wolf": "res://data/Cards/Wolf.tres",
+		"warrior": "res://data/Cards/warrior.tres",
+		"juggernaut": "res://data/Cards/juggernaut.tres",
+		"mage": "res://data/Cards/mage.tres",
+		"werewolf": "res://data/Cards/werewolf.tres",
+		"golem": "res://data/Cards/golem.tres",
+		"demon": "res://data/Cards/demon.tres",
+		"dragon": "res://data/Cards/dragon.tres",
+	}
+	
+	for card_id in card_ids:
+		var path: String = card_paths.get(card_id, "")
+		if path.is_empty():
+			push_warning("[MainGame] Unknown card ID: %s" % card_id)
+			continue
+		
+		if ResourceLoader.exists(path):
+			var card: CardData = load(path)
+			if card:
+				deck.append(card.duplicate_for_play())
+			else:
+				push_warning("[MainGame] Failed to load card: %s" % path)
+		else:
+			push_warning("[MainGame] Card resource not found: %s" % path)
+	
+	return deck
 
 
 func _create_test_deck() -> Array[CardData]:
@@ -319,7 +393,7 @@ func _create_test_deck() -> Array[CardData]:
 	# Load card resources from .tres files
 	var card_resources: Array[CardData] = []
 	
-	# Load all available card resources - FIXED PATH FOR Bat.tres
+	# Load all available card resources
 	var card_paths := [
 		"res://data/Cards/wisp.tres",
 		"res://data/Cards/Bat.tres",
@@ -350,9 +424,6 @@ func _create_test_deck() -> Array[CardData]:
 		return deck
 	
 	# Fill deck with 30 cards (multiple copies of each card)
-	var copies_per_card := ceili(30.0 / card_resources.size())
-	var card_index := 0
-	
 	for i in range(30):
 		var base_card: CardData = card_resources[i % card_resources.size()]
 		deck.append(base_card.duplicate_for_play())
@@ -423,7 +494,12 @@ func _on_game_ended(winner_id: int) -> void:
 	if game_over_panel:
 		game_over_panel.visible = true
 		if winner_label:
-			winner_label.text = "Player %d Wins!" % (winner_id + 1)
+			if winner_id == 0:
+				winner_label.text = "Victory!"
+				winner_label.add_theme_color_override("font_color", Color(0.3, 1.0, 0.3))
+			else:
+				winner_label.text = "Defeat!"
+				winner_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
 
 
 func _input(event: InputEvent) -> void:
@@ -436,3 +512,7 @@ func _input(event: InputEvent) -> void:
 			# Debug: Draw a card
 			if GameManager.is_player_turn(0):
 				GameManager._draw_card(0)
+		elif event.keycode == KEY_ESCAPE:
+			# Return to start screen
+			GameManager.reset_game()
+			get_tree().change_scene_to_file("res://scenes/start_screen.tscn")

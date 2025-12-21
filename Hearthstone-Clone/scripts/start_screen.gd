@@ -133,14 +133,9 @@ func _style_menu_button(button: Button) -> void:
 
 
 func _on_start_pressed() -> void:
-	# Transition to main game
-	print("[StartScreen] Starting game...")
-	
-	# Reset game manager state
-	GameManager.reset_game()
-	
-	# Load the main game scene
-	get_tree().change_scene_to_file("res://scenes/main_game.tscn")
+	# Go to class selection screen instead of directly to game
+	print("[StartScreen] Going to class selection...")
+	get_tree().change_scene_to_file("res://scenes/class_selection.tscn")
 
 
 func _on_options_pressed() -> void:
