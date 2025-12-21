@@ -1,4 +1,3 @@
-# res://scripts/minion.gd
 class_name minion
 extends Control
 
@@ -31,6 +30,8 @@ var attacks_this_turn: int = 0
 
 ## Visual state
 var is_targetable: bool = false
+# Note: _is_dragging is now effectively unused for movement, 
+# but kept to prevent errors if referenced elsewhere.
 var _is_dragging: bool = false
 var _drag_offset: Vector2 = Vector2.ZERO
 
@@ -340,12 +341,12 @@ func _gui_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 
 
-func _start_drag(global_pos: Vector2) -> void:
-	# If we own this minion and can move it, allow dragging
+func _start_drag(_global_pos: Vector2) -> void:
+	# If we own this minion and can move it, allow interaction
 	if owner_id == GameManager.active_player and not has_attacked and not has_moved_this_turn:
-		_drag_offset = global_position - global_pos
-		_is_dragging = true
-		z_index = 100
+		# CHANGED: We do NOT set _is_dragging = true.
+		# We do NOT set z_index.
+		# We ONLY emit the signal so PlayerController spawns the targeting arrow.
 		minion_drag_started.emit(self)
 	else:
 		# Just a click
@@ -355,19 +356,15 @@ func _start_drag(global_pos: Vector2) -> void:
 			minion_clicked.emit(self)
 
 
-func _update_drag(global_pos: Vector2) -> void:
-	if _is_dragging:
-		global_position = global_pos + _drag_offset
+func _update_drag(_global_pos: Vector2) -> void:
+	# CHANGED: Disabled physical movement.
+	# The minion stays in its slot while the arrow is dragged by the controller.
+	pass
 
 
-func _end_drag(global_pos: Vector2) -> void:
-	if _is_dragging:
-		_is_dragging = false
-		z_index = 0
-		minion_drag_ended.emit(self, global_pos)
-	else:
-		# Just a click release
-		pass
+func _end_drag(_global_pos: Vector2) -> void:
+	# CHANGED: No cleanup needed since we didn't start a physical drag.
+	pass
 
 
 func _on_mouse_entered() -> void:
