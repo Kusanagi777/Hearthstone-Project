@@ -374,6 +374,8 @@ func _connect_signals() -> void:
 		turn_button.visible = true
 
 
+# In scripts/main_game.gd
+
 func _setup_test_game() -> void:
 	print("[MainGame] Setting up game...")
 	
@@ -394,16 +396,16 @@ func _setup_test_game() -> void:
 	# Setup Player 1 (User) Class
 	if not selected_class.is_empty():
 		var class_health: int = selected_class.get("health", 30)
-		var class_name: String = selected_class.get("name", "Neutral")
+		var c_name: String = selected_class.get("name", "Neutral") # RENAMED HERE
 		GameManager.players[0]["hero_health"] = class_health
 		GameManager.players[0]["hero_max_health"] = class_health
-		# -- SET CLASS ID --
-		GameManager.set_player_class(0, class_name)
+		
+		# Set the class ID
+		GameManager.set_player_class(0, c_name)
 	else:
 		GameManager.set_player_class(0, "Neutral")
 		
-	# Setup Player 2 (Enemy) - Give them a random class for testing
-	# or default to "Neutral". Let's make them "Technical" for testing mechanics.
+	# Setup Player 2 (Enemy)
 	GameManager.set_player_class(1, "Technical")
 	
 	GameManager.start_game()
