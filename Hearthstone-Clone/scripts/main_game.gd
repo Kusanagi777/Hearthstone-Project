@@ -490,6 +490,8 @@ func _on_turn_button_pressed() -> void:
 		player_one.request_end_turn()
 
 
+# In scripts/main_game.gd
+
 func _on_game_ended(winner_id: int) -> void:
 	if game_over_panel:
 		game_over_panel.visible = true
@@ -497,9 +499,16 @@ func _on_game_ended(winner_id: int) -> void:
 			if winner_id == 0:
 				winner_label.text = "Victory!"
 				winner_label.add_theme_color_override("font_color", Color(0.3, 1.0, 0.3))
+				
+				# Wait 2 seconds so the player sees "Victory!", then go to loot screen
+				var timer = get_tree().create_timer(2.0)
+				await timer.timeout
+				get_tree().change_scene_to_file("res://scenes/victory_selection.tscn")
+				
 			else:
 				winner_label.text = "Defeat!"
 				winner_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
+				# Optional: Return to main menu on defeat
 
 
 func _input(event: InputEvent) -> void:
@@ -513,3 +522,21 @@ func _input(event: InputEvent) -> void:
 		elif event.keycode == KEY_ESCAPE:
 			GameManager.reset_game()
 			get_tree().change_scene_to_file("res://scenes/start_screen.tscn")
+		# --- NEW DEBUG KEY ---
+		elif event.keycode == KEY_K:
+			_debug_kill_enemy()
+
+## Debug function to instantly win the game
+func _debug_kill_enemy() -> void:
+	print("[MainGame] DEBUG: Insta-kill triggered!")
+	
+	# 1. Directly set the enemy (Player 1) health to 0 in the GameManager data
+	GameManager.players[1]["hero_health"] = 0
+	
+	# 2. Update the visual labels immediately so we see "HP: 0"
+	_update_health_display()
+	
+	# 3. Force the GameManager to check for death
+	# This will trigger the _end_game logic and emit the game_ended signal
+	# which our _on_game_ended function is already listening for.
+	GameManager._check_hero_death(1)
