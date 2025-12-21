@@ -1,7 +1,7 @@
 [gd_scene load_steps=6 format=3 uid="uid://632ip3qy3hbl"]
 
-[ext_resource type="Script" uid="uid://c8kubobqb3mm6" path="res://scripts/main_game.gd" id="1_script"]
-[ext_resource type="Script" uid="uid://bwfhbwldmtass" path="res://scripts/player_controller.gd" id="2_player_controller"]
+[ext_resource type="Script" uid="uid://bdldyqqf2ya2u" path="res://scripts/main_game.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://cw8qmv5mojciq" path="res://scripts/player_controller.gd" id="2_player_controller"]
 [ext_resource type="PackedScene" uid="uid://b4kgbdvrib7yv" path="res://scenes/card_ui.tscn" id="3_mgc0q"]
 [ext_resource type="PackedScene" uid="uid://c7ww28dm0nbva" path="res://scenes/minion.tscn" id="4_bb2iq"]
 [ext_resource type="PackedScene" uid="uid://3raggsnv71v5" path="res://scenes/targeting_arrow.tscn" id="5_18r40"]
@@ -121,7 +121,7 @@ theme_override_constants/separation = 8
 alignment = 1
 
 [node name="Lane1" type="PanelContainer" parent="GameArea/EnemySection/EnemyBoardArea/EnemyBackRow/EnemyBackLanes"]
-custom_minimum_size = Vector2(100, 0)
+custom_minimum_size = Vector2(75, 100)
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 2
@@ -131,7 +131,7 @@ layout_mode = 2
 mouse_filter = 2
 
 [node name="Lane2" type="PanelContainer" parent="GameArea/EnemySection/EnemyBoardArea/EnemyBackRow/EnemyBackLanes"]
-custom_minimum_size = Vector2(100, 0)
+custom_minimum_size = Vector2(75, 100)
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 2
@@ -141,7 +141,7 @@ layout_mode = 2
 mouse_filter = 2
 
 [node name="Lane3" type="PanelContainer" parent="GameArea/EnemySection/EnemyBoardArea/EnemyBackRow/EnemyBackLanes"]
-custom_minimum_size = Vector2(100, 0)
+custom_minimum_size = Vector2(75, 100)
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 2
@@ -164,7 +164,7 @@ theme_override_constants/separation = 8
 alignment = 1
 
 [node name="Lane1" type="PanelContainer" parent="GameArea/EnemySection/EnemyBoardArea/EnemyFrontRow/EnemyFrontLanes"]
-custom_minimum_size = Vector2(100, 0)
+custom_minimum_size = Vector2(75, 100)
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 2
@@ -174,7 +174,7 @@ layout_mode = 2
 mouse_filter = 2
 
 [node name="Lane2" type="PanelContainer" parent="GameArea/EnemySection/EnemyBoardArea/EnemyFrontRow/EnemyFrontLanes"]
-custom_minimum_size = Vector2(100, 0)
+custom_minimum_size = Vector2(75, 100)
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 2
@@ -184,7 +184,7 @@ layout_mode = 2
 mouse_filter = 2
 
 [node name="Lane3" type="PanelContainer" parent="GameArea/EnemySection/EnemyBoardArea/EnemyFrontRow/EnemyFrontLanes"]
-custom_minimum_size = Vector2(100, 0)
+custom_minimum_size = Vector2(75, 100)
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 2
@@ -268,7 +268,7 @@ theme_override_constants/separation = 8
 alignment = 1
 
 [node name="Lane1" type="PanelContainer" parent="GameArea/PlayerSection/PlayerBoardArea/PlayerFrontRow/PlayerFrontLanes"]
-custom_minimum_size = Vector2(100, 0)
+custom_minimum_size = Vector2(75, 100)
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 2
@@ -278,7 +278,7 @@ layout_mode = 2
 mouse_filter = 2
 
 [node name="Lane2" type="PanelContainer" parent="GameArea/PlayerSection/PlayerBoardArea/PlayerFrontRow/PlayerFrontLanes"]
-custom_minimum_size = Vector2(100, 0)
+custom_minimum_size = Vector2(75, 100)
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 2
@@ -288,7 +288,7 @@ layout_mode = 2
 mouse_filter = 2
 
 [node name="Lane3" type="PanelContainer" parent="GameArea/PlayerSection/PlayerBoardArea/PlayerFrontRow/PlayerFrontLanes"]
-custom_minimum_size = Vector2(100, 0)
+custom_minimum_size = Vector2(75, 100)
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 2
@@ -311,7 +311,7 @@ theme_override_constants/separation = 8
 alignment = 1
 
 [node name="Lane1" type="PanelContainer" parent="GameArea/PlayerSection/PlayerBoardArea/PlayerBackRow/PlayerBackLanes"]
-custom_minimum_size = Vector2(100, 0)
+custom_minimum_size = Vector2(75, 100)
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 2
@@ -321,7 +321,7 @@ layout_mode = 2
 mouse_filter = 2
 
 [node name="Lane2" type="PanelContainer" parent="GameArea/PlayerSection/PlayerBoardArea/PlayerBackRow/PlayerBackLanes"]
-custom_minimum_size = Vector2(100, 0)
+custom_minimum_size = Vector2(75, 100)
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 2
@@ -331,7 +331,7 @@ layout_mode = 2
 mouse_filter = 2
 
 [node name="Lane3" type="PanelContainer" parent="GameArea/PlayerSection/PlayerBoardArea/PlayerBackRow/PlayerBackLanes"]
-custom_minimum_size = Vector2(100, 0)
+custom_minimum_size = Vector2(75, 100)
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 2

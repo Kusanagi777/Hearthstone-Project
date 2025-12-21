@@ -1,4 +1,3 @@
-# res://scripts/player_controller.gd
 class_name player_controller
 extends Node
 
@@ -15,6 +14,7 @@ signal targeting_ended(source: Node, target: Node)
 @export var hand_container: Control
 
 ## Lane references (set by main_game.gd)
+# These arrays hold the actual Control nodes for the 6 board slots
 var front_lanes: Array[Control] = []
 var back_lanes: Array[Control] = []
 var enemy_front_lanes: Array[Control] = []
@@ -68,6 +68,11 @@ func _deferred_ready() -> void:
 	_apply_responsive_spacing()
 	GameManager.register_controller_ready()
 	get_viewport().size_changed.connect(_on_viewport_size_changed)
+	
+	# Validate lane setup
+	if front_lanes.is_empty() or back_lanes.is_empty():
+		push_warning("[PlayerController %d] Lane arrays are empty! Check MainGame setup." % player_id)
+		
 	print("[PlayerController %d] Ready, is_ai: %s" % [player_id, is_ai])
 
 
@@ -87,6 +92,7 @@ func _on_viewport_size_changed() -> void:
 
 
 func _connect_signals() -> void:
+	# Disconnect first to avoid duplicates if re-initializing
 	if GameManager.card_drawn.is_connected(_on_card_drawn):
 		GameManager.card_drawn.disconnect(_on_card_drawn)
 	if GameManager.turn_started.is_connected(_on_turn_started):
@@ -181,6 +187,7 @@ func _on_card_drag_started(card_ui_instance: Control) -> void:
 	_dragged_card = card_ui_instance
 
 
+## Validates the drop position for playing cards
 func _on_card_drag_ended(card_ui_instance: Control, global_pos: Vector2) -> void:
 	if not _dragged_card:
 		return
@@ -192,12 +199,15 @@ func _on_card_drag_ended(card_ui_instance: Control, global_pos: Vector2) -> void
 	var target_lane = _get_lane_at_position(global_pos)
 	
 	if target_lane != null:
+		# Retrieve metadata set by main_game.gd to determine lane properties
 		var lane_index: int = target_lane.get_meta("lane_index", -1)
 		var is_front: bool = target_lane.get_meta("is_front", true)
 		var is_player_lane: bool = target_lane.get_meta("is_player", true)
 		
-		# Can only play to own lanes
+		# Validate ownership: Player 0 uses "player" lanes, Player 1 uses "enemy" lanes
+		# (In the MainGame setup, is_player=true corresponds to Player 0's side)
 		if is_player_lane == (player_id == 0):
+			# Attempt to play the card to the specific lane (Front OR Back)
 			var success = await _try_play_card_to_lane(dragged, lane_index, is_front)
 			if not success and is_instance_valid(dragged):
 				dragged.return_to_hand()
@@ -207,8 +217,9 @@ func _on_card_drag_ended(card_ui_instance: Control, global_pos: Vector2) -> void
 		dragged.return_to_hand()
 
 
+## Iterates through both Front and Back lanes to find one under the mouse
 func _get_lane_at_position(global_pos: Vector2) -> Control:
-	# Check all player lanes
+	# Check all player lanes (3 Front + 3 Back = 6 valid targets)
 	for lane in front_lanes + back_lanes:
 		if lane and lane.get_global_rect().has_point(global_pos):
 			return lane
@@ -230,7 +241,7 @@ func _is_lane_empty(lane: Control) -> bool:
 func _try_play_card_to_lane(card_ui_instance: Control, lane_index: int, is_front: bool) -> bool:
 	var card: CardData = card_ui_instance.card_data
 	
-	# Get the target lane
+	# Get the target lane based on row and index
 	var target_lane: Control
 	if is_front:
 		if lane_index < front_lanes.size():
@@ -242,7 +253,7 @@ func _try_play_card_to_lane(card_ui_instance: Control, lane_index: int, is_front
 	if not target_lane:
 		return false
 	
-	# Check if lane is empty
+	# Check if lane is empty (Game Rule: 1 Minion per Slot)
 	if not _is_lane_empty(target_lane):
 		print("[PlayerController %d] Lane %d %s is occupied" % [player_id, lane_index, "front" if is_front else "back"])
 		return false
@@ -251,6 +262,7 @@ func _try_play_card_to_lane(card_ui_instance: Control, lane_index: int, is_front
 		_animate_card_play(card_ui_instance)
 		
 		if card.card_type == CardData.CardType.MINION:
+			# Small delay for visual impact
 			await get_tree().create_timer(0.2).timeout
 			_spawn_minion_in_lane(card, lane_index, is_front)
 		
@@ -384,6 +396,7 @@ func _on_minion_drag_ended(minion_instance: Node, global_pos: Vector2) -> void:
 		# Can only move to own lanes
 		if is_player_lane == (player_id == 0):
 			# Check if it's a different row (same lane, different row)
+			# We allow moving forward or backward in the same lane index
 			if lane_index == minion_instance.lane_index and is_front != minion_instance.is_front_row:
 				if _is_lane_empty(target_lane):
 					_move_minion_to_row(minion_instance, is_front)
@@ -690,6 +703,7 @@ func _ai_play_cards() -> void:
 		if playable_cards.is_empty():
 			break
 		
+		# AI Strategy: Play expensive cards first
 		playable_cards.sort_custom(func(a, b): return a.card_data.cost > b.card_data.cost)
 		
 		for card_ui_instance in playable_cards:
@@ -702,14 +716,15 @@ func _ai_play_cards() -> void:
 				continue
 			
 			if card.card_type == CardData.CardType.MINION:
-				# Find an empty lane
-				var lane_index = _ai_find_empty_lane()
-				if lane_index == -1:
+				# Find a SPECIFIC empty lane with its row information
+				var target_lane_info = _ai_find_play_target()
+				
+				# If no space is available, skip this minion
+				if target_lane_info.is_empty():
 					continue
 				
-				var is_front = randf() > 0.3  # AI prefers front row
-				
-				if await _try_play_card_to_lane(card_ui_instance, lane_index, is_front):
+				# Play to the found index and row
+				if await _try_play_card_to_lane(card_ui_instance, target_lane_info.index, target_lane_info.is_front):
 					played_card = true
 					await get_tree().create_timer(ai_action_delay).timeout
 					break
@@ -726,15 +741,20 @@ func _ai_get_playable_cards() -> Array:
 	return playable
 
 
-func _ai_find_empty_lane() -> int:
+## Helper to find a valid slot for the AI
+## Returns a Dictionary with { "index": int, "is_front": bool } or empty if full
+func _ai_find_play_target() -> Dictionary:
 	# Prefer front lanes first
 	for i in range(front_lanes.size()):
 		if _is_lane_empty(front_lanes[i]):
-			return i
+			return {"index": i, "is_front": true}
+	
+	# Fallback to back lanes
 	for i in range(back_lanes.size()):
 		if _is_lane_empty(back_lanes[i]):
-			return i
-	return -1
+			return {"index": i, "is_front": false}
+			
+	return {}
 
 
 func _ai_attack_with_minions() -> void:
