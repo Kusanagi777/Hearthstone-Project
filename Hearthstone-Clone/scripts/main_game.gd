@@ -60,12 +60,6 @@ func _ready() -> void:
 		print("[MainGame] Using deck: %s" % selected_deck.get("name", "Unknown"))
 	
 	_find_nodes_if_needed()
-	# -- NEW: CREATE RESOURCE LABELS DYNAMICALLY IF MISSING --
-	# This ensures it works without you having to drag nodes in the editor immediately
-	if not player_resource_label and player_hero_area:
-		player_resource_label = _create_resource_label(player_hero_area, true)
-	if not enemy_resource_label and enemy_hero_area:
-		enemy_resource_label = _create_resource_label(enemy_hero_area, false)
 	_setup_lanes()
 	_apply_styling()
 	_apply_responsive_fonts()
@@ -83,39 +77,39 @@ func _ready() -> void:
 
 
 func _setup_lanes() -> void:
-	# Find player front lanes
+	# Find player front lanes (in PlayerBoardRow/PlayerBoardArea/PlayerFrontRow/PlayerFrontLanes)
 	var player_front_container = find_child("PlayerFrontLanes", true, false)
 	if player_front_container:
-		for i in range(3):
+		for i in range(player_front_container.get_child_count()):
 			var lane = player_front_container.get_child(i)
-			if lane:
+			if lane and lane is PanelContainer:
 				player_front_lanes.append(lane)
 				_style_lane_panel(lane, true, true, i)
 	
 	# Find player back lanes
 	var player_back_container = find_child("PlayerBackLanes", true, false)
 	if player_back_container:
-		for i in range(3):
+		for i in range(player_back_container.get_child_count()):
 			var lane = player_back_container.get_child(i)
-			if lane:
+			if lane and lane is PanelContainer:
 				player_back_lanes.append(lane)
 				_style_lane_panel(lane, true, false, i)
 	
 	# Find enemy front lanes
 	var enemy_front_container = find_child("EnemyFrontLanes", true, false)
 	if enemy_front_container:
-		for i in range(3):
+		for i in range(enemy_front_container.get_child_count()):
 			var lane = enemy_front_container.get_child(i)
-			if lane:
+			if lane and lane is PanelContainer:
 				enemy_front_lanes.append(lane)
 				_style_lane_panel(lane, false, true, i)
 	
 	# Find enemy back lanes
 	var enemy_back_container = find_child("EnemyBackLanes", true, false)
 	if enemy_back_container:
-		for i in range(3):
+		for i in range(enemy_back_container.get_child_count()):
 			var lane = enemy_back_container.get_child(i)
-			if lane:
+			if lane and lane is PanelContainer:
 				enemy_back_lanes.append(lane)
 				_style_lane_panel(lane, false, false, i)
 	
@@ -197,6 +191,10 @@ func _apply_responsive_fonts() -> void:
 		enemy_deck_label.add_theme_font_size_override("font_size", int(12 * scale_factor))
 	if winner_label:
 		winner_label.add_theme_font_size_override("font_size", int(24 * scale_factor))
+	if player_resource_label:
+		player_resource_label.add_theme_font_size_override("font_size", int(14 * scale_factor))
+	if enemy_resource_label:
+		enemy_resource_label.add_theme_font_size_override("font_size", int(14 * scale_factor))
 
 
 func _find_nodes_if_needed() -> void:
@@ -225,9 +223,13 @@ func _find_nodes_if_needed() -> void:
 	if not enemy_hand_container:
 		enemy_hand_container = find_child("EnemyHandContainer", true, false) as Control
 	if not player_hero_area:
-		player_hero_area = find_child("PlayerHeroArea", true, false) as Control
+		player_hero_area = find_child("PlayerHeroPanel", true, false) as Control
 	if not enemy_hero_area:
-		enemy_hero_area = find_child("EnemyHeroArea", true, false) as Control
+		enemy_hero_area = find_child("EnemyHeroPanel", true, false) as Control
+	if not player_resource_label:
+		player_resource_label = find_child("PlayerResourceLabel", true, false) as Label
+	if not enemy_resource_label:
+		enemy_resource_label = find_child("EnemyResourceLabel", true, false) as Label
 	if not player_one:
 		player_one = find_child("PlayerOneController", true, false) as player_controller
 	if not player_two:
@@ -251,9 +253,13 @@ func _setup_player_controllers() -> void:
 
 
 func _apply_styling() -> void:
-	# Style hand areas
-	_style_panel_container(find_child("PlayerHandArea", true, false) as Control, Color(0.1, 0.12, 0.18, 0.7))
-	_style_panel_container(find_child("EnemyHandArea", true, false) as Control, Color(0.18, 0.1, 0.1, 0.5))
+	# Style hand panels
+	_style_panel_container(find_child("PlayerHandPanel", true, false) as Control, Color(0.1, 0.12, 0.18, 0.7))
+	_style_panel_container(find_child("EnemyHandPanel", true, false) as Control, Color(0.18, 0.1, 0.1, 0.5))
+	
+	# Style resource panels
+	_style_panel_container(find_child("PlayerResourcePanel", true, false) as Control, Color(0.12, 0.12, 0.16, 0.8))
+	_style_panel_container(find_child("EnemyResourcePanel", true, false) as Control, Color(0.16, 0.12, 0.12, 0.8))
 	
 	# Style row containers
 	_style_panel_container(find_child("PlayerFrontRow", true, false) as Control, Color(0.1, 0.15, 0.12, 0.3))
@@ -261,7 +267,7 @@ func _apply_styling() -> void:
 	_style_panel_container(find_child("EnemyFrontRow", true, false) as Control, Color(0.15, 0.1, 0.1, 0.3))
 	_style_panel_container(find_child("EnemyBackRow", true, false) as Control, Color(0.1, 0.08, 0.08, 0.3))
 	
-	# Style hero areas
+	# Style hero panels
 	_style_hero_panel(player_hero_area, true)
 	_style_hero_panel(enemy_hero_area, false)
 	
@@ -345,26 +351,12 @@ func _style_game_over_panel() -> void:
 	game_over_panel.add_theme_stylebox_override("panel", style)
 
 
-# Helper to create resource labels on the fly
-func _create_resource_label(parent: Control, is_player: bool) -> Label:
-	var lbl = Label.new()
-	parent.add_child(lbl)
-	lbl.name = "ResourceLabel"
-	# Position it near the mana or health
-	lbl.layout_mode = 1 # Anchors
-	lbl.anchors_preset = Control.PRESET_TOP_RIGHT if is_player else Control.PRESET_TOP_LEFT
-	lbl.position = Vector2(-20 if is_player else 20, -30)
-	lbl.add_theme_font_size_override("font_size", 20)
-	lbl.add_theme_color_override("font_color", Color.GOLD)
-	return lbl
-
 func _connect_signals() -> void:
 	GameManager.turn_started.connect(_on_turn_started)
 	GameManager.mana_changed.connect(_on_mana_changed)
 	GameManager.game_ended.connect(_on_game_ended)
 	GameManager.card_drawn.connect(_on_card_drawn)
 	GameManager.entity_died.connect(_on_entity_died)
-	# -- NEW SIGNAL --
 	GameManager.resource_changed.connect(_on_resource_changed)
 	
 	if turn_button:
@@ -373,8 +365,6 @@ func _connect_signals() -> void:
 		turn_button.text = "End Turn"
 		turn_button.visible = true
 
-
-# In scripts/main_game.gd
 
 func _setup_test_game() -> void:
 	print("[MainGame] Setting up game...")
@@ -396,11 +386,9 @@ func _setup_test_game() -> void:
 	# Setup Player 1 (User) Class
 	if not selected_class.is_empty():
 		var class_health: int = selected_class.get("health", 30)
-		var c_name: String = selected_class.get("name", "Neutral") # RENAMED HERE
+		var c_name: String = selected_class.get("name", "Neutral")
 		GameManager.players[0]["hero_health"] = class_health
 		GameManager.players[0]["hero_max_health"] = class_health
-		
-		# Set the class ID
 		GameManager.set_player_class(0, c_name)
 	else:
 		GameManager.set_player_class(0, "Neutral")
@@ -531,8 +519,6 @@ func _on_turn_button_pressed() -> void:
 		player_one.request_end_turn()
 
 
-# In scripts/main_game.gd
-
 func _on_game_ended(winner_id: int) -> void:
 	if game_over_panel:
 		game_over_panel.visible = true
@@ -549,14 +535,16 @@ func _on_game_ended(winner_id: int) -> void:
 			else:
 				winner_label.text = "Defeat!"
 				winner_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
-				# Optional: Return to main menu on defeat
+
 
 func _on_resource_changed(player_id: int, current: int, max_val: int) -> void:
 	_update_resource_display(player_id, current, max_val)
 
+
 func _update_resource_display(player_id: int, current: int, max_val: int) -> void:
 	var lbl = player_resource_label if player_id == 0 else enemy_resource_label
-	if not lbl: return
+	if not lbl: 
+		return
 	
 	var class_id = GameManager.players[player_id]["class_id"]
 	var resource_name = ""
@@ -571,10 +559,11 @@ func _update_resource_display(player_id: int, current: int, max_val: int) -> voi
 			lbl.text = ""
 			return
 
-	if max_val > 900: # Unlimited
+	if max_val > 900:  # Unlimited
 		lbl.text = "%s: %d" % [resource_name, current]
 	else:
 		lbl.text = "%s: %d/%d" % [resource_name, current, max_val]
+
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed:
@@ -587,21 +576,13 @@ func _input(event: InputEvent) -> void:
 		elif event.keycode == KEY_ESCAPE:
 			GameManager.reset_game()
 			get_tree().change_scene_to_file("res://scenes/start_screen.tscn")
-		# --- NEW DEBUG KEY ---
 		elif event.keycode == KEY_K:
 			_debug_kill_enemy()
+
 
 ## Debug function to instantly win the game
 func _debug_kill_enemy() -> void:
 	print("[MainGame] DEBUG: Insta-kill triggered!")
-	
-	# 1. Directly set the enemy (Player 1) health to 0 in the GameManager data
 	GameManager.players[1]["hero_health"] = 0
-	
-	# 2. Update the visual labels immediately so we see "HP: 0"
 	_update_health_display()
-	
-	# 3. Force the GameManager to check for death
-	# This will trigger the _end_game logic and emit the game_ended signal
-	# which our _on_game_ended function is already listening for.
 	GameManager._check_hero_death(1)

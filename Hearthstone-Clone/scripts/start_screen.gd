@@ -5,6 +5,7 @@ extends Control
 @onready var start_button: Button = $CenterContainer/VBoxContainer/MenuButtons/StartButton
 @onready var options_button: Button = $CenterContainer/VBoxContainer/MenuButtons/OptionsButton
 @onready var exit_button: Button = $CenterContainer/VBoxContainer/MenuButtons/ExitButton
+@onready var store_button: Button = $"CenterContainer/VBoxContainer/MenuButtons/Shop Test"
 @onready var options_panel: Panel = $OptionsPanel
 @onready var back_button: Button = $OptionsPanel/VBoxContainer/BackButton
 @onready var master_volume_slider: HSlider = $OptionsPanel/VBoxContainer/MasterVolume/MasterVolumeSlider
@@ -43,6 +44,8 @@ func _connect_signals() -> void:
 		options_button.pressed.connect(_on_options_pressed)
 	if exit_button:
 		exit_button.pressed.connect(_on_exit_pressed)
+	if store_button:
+		store_button.pressed.connect(_on_shop_pressed)
 	if back_button:
 		back_button.pressed.connect(_on_back_pressed)
 	if master_volume_slider:
@@ -155,6 +158,9 @@ func _on_exit_pressed() -> void:
 	_save_settings()
 	get_tree().quit()
 
+func _on_shop_pressed() -> void:
+	print("[StartScreen] Opening shop")
+	get_tree().change_scene_to_file("res://scenes/shop_screen.tscn")
 
 func _on_master_volume_changed(value: float) -> void:
 	# Convert slider value (0-100) to dB (-80 to 0)
