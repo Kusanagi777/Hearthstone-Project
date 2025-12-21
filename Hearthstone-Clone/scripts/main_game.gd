@@ -17,6 +17,10 @@ extends Control
 @export var game_over_panel: Panel
 @export var winner_label: Label
 
+## Class Resources
+@export var player_resource_label: Label
+@export var enemy_resource_label: Label
+
 ## Hand containers
 @export var player_hand_container: Control
 @export var enemy_hand_container: Control
@@ -56,6 +60,12 @@ func _ready() -> void:
 		print("[MainGame] Using deck: %s" % selected_deck.get("name", "Unknown"))
 	
 	_find_nodes_if_needed()
+	# -- NEW: CREATE RESOURCE LABELS DYNAMICALLY IF MISSING --
+	# This ensures it works without you having to drag nodes in the editor immediately
+	if not player_resource_label and player_hero_area:
+		player_resource_label = _create_resource_label(player_hero_area, true)
+	if not enemy_resource_label and enemy_hero_area:
+		enemy_resource_label = _create_resource_label(enemy_hero_area, false)
 	_setup_lanes()
 	_apply_styling()
 	_apply_responsive_fonts()
@@ -335,12 +345,27 @@ func _style_game_over_panel() -> void:
 	game_over_panel.add_theme_stylebox_override("panel", style)
 
 
+# Helper to create resource labels on the fly
+func _create_resource_label(parent: Control, is_player: bool) -> Label:
+	var lbl = Label.new()
+	parent.add_child(lbl)
+	lbl.name = "ResourceLabel"
+	# Position it near the mana or health
+	lbl.layout_mode = 1 # Anchors
+	lbl.anchors_preset = Control.PRESET_TOP_RIGHT if is_player else Control.PRESET_TOP_LEFT
+	lbl.position = Vector2(-20 if is_player else 20, -30)
+	lbl.add_theme_font_size_override("font_size", 20)
+	lbl.add_theme_color_override("font_color", Color.GOLD)
+	return lbl
+
 func _connect_signals() -> void:
 	GameManager.turn_started.connect(_on_turn_started)
 	GameManager.mana_changed.connect(_on_mana_changed)
 	GameManager.game_ended.connect(_on_game_ended)
 	GameManager.card_drawn.connect(_on_card_drawn)
 	GameManager.entity_died.connect(_on_entity_died)
+	# -- NEW SIGNAL --
+	GameManager.resource_changed.connect(_on_resource_changed)
 	
 	if turn_button:
 		if not turn_button.pressed.is_connected(_on_turn_button_pressed):
@@ -366,12 +391,26 @@ func _setup_test_game() -> void:
 	GameManager.set_player_deck(0, player_deck)
 	GameManager.set_player_deck(1, enemy_deck)
 	
+	# Setup Player 1 (User) Class
 	if not selected_class.is_empty():
 		var class_health: int = selected_class.get("health", 30)
+		var class_name: String = selected_class.get("name", "Neutral")
 		GameManager.players[0]["hero_health"] = class_health
 		GameManager.players[0]["hero_max_health"] = class_health
+		# -- SET CLASS ID --
+		GameManager.set_player_class(0, class_name)
+	else:
+		GameManager.set_player_class(0, "Neutral")
+		
+	# Setup Player 2 (Enemy) - Give them a random class for testing
+	# or default to "Neutral". Let's make them "Technical" for testing mechanics.
+	GameManager.set_player_class(1, "Technical")
 	
 	GameManager.start_game()
+	
+	# Initial UI update for resources
+	_update_resource_display(0, 0, 0)
+	_update_resource_display(1, 0, 0)
 
 
 func _build_deck_from_selection(card_ids: Array) -> Array[CardData]:
@@ -510,6 +549,30 @@ func _on_game_ended(winner_id: int) -> void:
 				winner_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
 				# Optional: Return to main menu on defeat
 
+func _on_resource_changed(player_id: int, current: int, max_val: int) -> void:
+	_update_resource_display(player_id, current, max_val)
+
+func _update_resource_display(player_id: int, current: int, max_val: int) -> void:
+	var lbl = player_resource_label if player_id == 0 else enemy_resource_label
+	if not lbl: return
+	
+	var class_id = GameManager.players[player_id]["class_id"]
+	var resource_name = ""
+	
+	match class_id:
+		"cute": resource_name = "Fans"
+		"technical": resource_name = "Battery"
+		"primal": resource_name = "Hunger"
+		"other": resource_name = "Omens"
+		"ace": resource_name = "Spirit"
+		_: 
+			lbl.text = ""
+			return
+
+	if max_val > 900: # Unlimited
+		lbl.text = "%s: %d" % [resource_name, current]
+	else:
+		lbl.text = "%s: %d/%d" % [resource_name, current, max_val]
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed:

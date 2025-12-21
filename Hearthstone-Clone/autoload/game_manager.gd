@@ -19,6 +19,9 @@ signal turn_ended(player_id: int)
 ## Emitted when mana changes
 signal mana_changed(player_id: int, current: int, maximum: int)
 
+## Emitted when the unique class resource changes (NEW)
+signal resource_changed(player_id: int, current: int, maximum: int)
+
 ## Emitted when a card is drawn
 signal card_drawn(player_id: int, card: CardData)
 
@@ -111,6 +114,9 @@ func _initialize_player_data() -> void:
 	for i in range(2):
 		players.append({
 			"id": i,
+			"class_id": "",         # "cute", "technical", "primal", "other", "ace"
+			"class_resource": 0,    # Current amount of Fans, Battery, etc.
+			"class_resource_max": 0,# Cap for the resource
 			"current_mana": 0,
 			"max_mana": 0,
 			"hero_health": 30,
@@ -120,10 +126,39 @@ func _initialize_player_data() -> void:
 			"hand": [] as Array[CardData],
 			"board": [] as Array[Node],
 			"graveyard": [] as Array[CardData],
-			"weapon": null,  # CardData or null
+			"weapon": null,
 			"weapon_durability": 0,
 			"fatigue_counter": 0
 		})
+
+
+## Sets the class identity for a player (Call this before start_game)
+func set_player_class(player_id: int, class_name_str: String) -> void:
+	var pid = class_name_str.to_lower()
+	players[player_id]["class_id"] = pid
+	players[player_id]["class_resource"] = 0
+	
+	# Set resource caps based on class
+	match pid:
+		"cute": players[player_id]["class_resource_max"] = 999 # No limit
+		"technical": players[player_id]["class_resource_max"] = 10
+		"primal": players[player_id]["class_resource_max"] = 30
+		"other": players[player_id]["class_resource_max"] = 3
+		"ace": players[player_id]["class_resource_max"] = 5
+		_: players[player_id]["class_resource_max"] = 0
+
+
+## Helper to modify unique resources
+func _modify_resource(player_id: int, amount: int) -> void:
+	var p = players[player_id]
+	var old_val = p["class_resource"]
+	var max_val = p["class_resource_max"]
+	
+	p["class_resource"] = clampi(old_val + amount, 0, max_val)
+	
+	if p["class_resource"] != old_val:
+		print("[GameManager] Player %d resource (%s) changed: %d -> %d" % [player_id, p["class_id"], old_val, p["class_resource"]])
+		resource_changed.emit(player_id, p["class_resource"], max_val)
 
 
 ## Called by PlayerController when it's ready
@@ -417,6 +452,11 @@ func trigger_deathrattle(player_id: int, card: CardData, board_position: int) ->
 func register_minion_on_board(player_id: int, minion_node: Node) -> void:
 	players[player_id]["board"].append(minion_node)
 	print("[GameManager] Registered minion on board for player %d" % player_id)
+	
+	# Mechanic: CUTE
+	# "Every time the cute class summons a minion, they get 1 fan."
+	if players[player_id]["class_id"] == "cute":
+		_modify_resource(player_id, 1)
 
 
 ## Remove a minion from the board
@@ -441,6 +481,27 @@ func execute_combat(attacker: Node, defender: Node) -> void:
 	var attacker_blocked: bool = attacker.has_divine_shield
 	var defender_blocked: bool = defender.has_divine_shield
 	
+	# Apply damage
+	if attacker_blocked:
+		attacker.remove_divine_shield()
+	else:
+		attacker.take_damage(defender_attack)
+		
+		# Mechanic: PRIMAL (Attacker took damage)
+		# "Every time a unit from either side takes damage, the Primal gains 1 hunger"
+		if defender_attack > 0:
+			_check_primal_damage_trigger()
+
+	if defender_blocked:
+		defender.remove_divine_shield()
+	else:
+		defender.take_damage(attacker_attack)
+		
+		# Mechanic: PRIMAL (Defender took damage)
+		if attacker_attack > 0:
+			_check_primal_damage_trigger()
+	
+	# Prepare data for signal
 	var attacker_data := {
 		"node": attacker,
 		"damage_dealt": attacker_attack,
@@ -454,23 +515,10 @@ func execute_combat(attacker: Node, defender: Node) -> void:
 		"shield_popped": defender_blocked
 	}
 	
-	# Apply damage (divine shield blocks it)
-	if attacker_blocked:
-		attacker.remove_divine_shield()
-	else:
-		attacker.take_damage(defender_attack)
-	
-	if defender_blocked:
-		defender.remove_divine_shield()
-	else:
-		defender.take_damage(attacker_attack)
-	
 	combat_occurred.emit(attacker_data, defender_data)
 	
-	# Mark attacker as having attacked
 	attacker.has_attacked = true
 	
-	# Check for deaths
 	await get_tree().process_frame
 	_check_minion_deaths()
 	
@@ -484,22 +532,49 @@ func attack_hero(attacker: Node, target_player_id: int) -> void:
 	
 	var attacker_attack: int = attacker.current_attack
 	var player_data: Dictionary = players[target_player_id]
+	var damage_dealt = 0
 	
 	# Damage armor first
 	if player_data["hero_armor"] > 0:
 		var armor_damage := mini(attacker_attack, player_data["hero_armor"])
 		player_data["hero_armor"] -= armor_damage
-		attacker_attack -= armor_damage
+		attacker_attack -= armor_damage # Remainder
+		# Note: Armor damage counts as "taking damage" for most triggers? Usually yes.
+		damage_dealt += armor_damage
 	
 	# Remaining damage hits health
-	player_data["hero_health"] -= attacker_attack
+	if attacker_attack > 0:
+		player_data["hero_health"] -= attacker_attack
+		damage_dealt += attacker_attack
 	
 	attacker.has_attacked = true
 	print("[GameManager] Player %d hero took %d damage, now at %d HP" % [
-		target_player_id, attacker.current_attack, player_data["hero_health"]
+		target_player_id, damage_dealt, player_data["hero_health"]
 	])
 	
+	if damage_dealt > 0:
+		# Mechanic: THE ACE
+		# "Every time The Ace takes damage, they gain spirit."
+		if players[target_player_id]["class_id"] == "ace":
+			_modify_resource(target_player_id, 1)
+			
+		# Mechanic: PRIMAL
+		# "Every time a UNIT... takes damage". 
+		# If Heroes count as units for Primal, uncomment below. 
+		# Usually "Unit" = Minion, "Character" = Minion + Hero. 
+		# We will assume strictly Minions for Primal based on standard CCG wording, 
+		# but if you want Heroes included, call _check_primal_damage_trigger() here.
+		pass
+
 	_check_hero_death(target_player_id)
+
+
+## Helper for Primal mechanic
+func _check_primal_damage_trigger() -> void:
+	# Check both players. If anyone is Primal, they get +1 Hunger.
+	for i in range(2):
+		if players[i]["class_id"] == "primal":
+			_modify_resource(i, 1)
 
 
 ## Check if any minions should die
@@ -521,35 +596,38 @@ func _destroy_minion(player_id: int, minion: Node) -> void:
 	var board_position: int = players[player_id]["board"].find(minion)
 	remove_minion_from_board(player_id, minion)
 	
-	# Trigger deathrattle before removing
+	# Trigger deathrattle before removing (logic existing)
 	if minion.has_method("get_card_data"):
 		var minion_card: CardData = minion.get_card_data()
 		if minion_card and "Deathrattle" in minion_card.tags:
 			trigger_deathrattle(player_id, minion_card, board_position)
 		players[player_id]["graveyard"].append(minion_card)
 	
+	# Mechanic: THE OTHER
+	# "Every time one of The Other's minions dies, they get 1 omen."
+	if players[player_id]["class_id"] == "other":
+		_modify_resource(player_id, 1)
+	
 	entity_died.emit(player_id, minion)
 	
-	# Death animation handled by minion itself
 	if minion.has_method("play_death_animation"):
 		await minion.play_death_animation()
 	else:
 		minion.queue_free()
 
 
-## Check if a hero has died
-func _check_hero_death(player_id: int) -> void:
-	if players[player_id]["hero_health"] <= 0:
-		var winner_id := 1 - player_id
-		_end_game(winner_id)
-
-
 ## End the current turn
 func end_turn() -> void:
 	if current_phase != GamePhase.PLAY:
-		print("[GameManager] Cannot end turn - not in play phase")
 		return
 	
+	# Mechanic: TECHNICAL
+	# "Every time technical ends their turn with unused mana, they gain an equal amount of Battery charges."
+	if players[active_player]["class_id"] == "technical":
+		var unused = players[active_player]["current_mana"]
+		if unused > 0:
+			_modify_resource(active_player, unused)
+
 	print("[GameManager] Ending turn for player %d" % active_player)
 	current_phase = GamePhase.END_TURN
 	
@@ -568,6 +646,12 @@ func end_turn() -> void:
 		CONNECT_ONE_SHOT
 	)
 
+
+## Check if a hero has died
+func _check_hero_death(player_id: int) -> void:
+	if players[player_id]["hero_health"] <= 0:
+		var winner_id := 1 - player_id
+		_end_game(winner_id)
 
 ## End the game
 func _end_game(winner_id: int) -> void:
