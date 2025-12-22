@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://b8q6y4w2p5l3n"]
 
-[ext_resource type="Script" uid="uid://cf06qrfu7i0b0" path="res://hero_power_selection.gd" id="1_hero_power"]
+[ext_resource type="Script" path="res://hero_power_selection.gd" id="1_hero_power"]
 
 [node name="HeroPowerSelection" type="Control"]
 layout_mode = 3

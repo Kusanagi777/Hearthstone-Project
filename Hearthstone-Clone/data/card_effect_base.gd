@@ -1,4 +1,4 @@
-# res://scripts/effects/card_effect_base.gd
+# res://data/card_effect_base.gd
 class_name card_effect_base
 extends RefCounted
 
@@ -59,10 +59,6 @@ func _execute_deathrattle(_board_position: int) -> void:
 func deal_damage(target: Variant, amount: int) -> void:
 	if target is Node and target.has_method("take_damage"):
 		target.take_damage(amount)
-		
-		# Check for lifesteal on source minion
-		# Note: Would need reference to source minion for this
-		
 	elif target is int:  # Player ID for hero
 		game_manager.players[target]["hero_health"] -= amount
 
@@ -78,27 +74,33 @@ func heal_target(target: Variant, amount: int) -> void:
 			player_data["hero_max_health"]
 		)
 
-## Buff a minion
-func buff_minion(minion: Node, attack_bonus: int, health_bonus: int) -> void:
-	if minion.has_method("buff_stats"):
-		minion.buff_stats(attack_bonus, health_bonus)
+
+## Buff a minion - renamed parameter from 'minion' to 'm' to avoid class name conflict
+func buff_minion(m: Node, attack_bonus: int, health_bonus: int) -> void:
+	if m.has_method("buff_stats"):
+		m.buff_stats(attack_bonus, health_bonus)
+
 
 ## Draw cards
 func draw_cards(player_id: int, count: int) -> void:
 	for i in range(count):
 		game_manager._draw_card(player_id)
 
+
 ## Get all minions on a player's board
 func get_board(player_id: int) -> Array:
 	return game_manager.players[player_id]["board"]
+
 
 ## Get all minions (both boards)
 func get_all_minions() -> Array:
 	return get_board(0) + get_board(1)
 
+
 ## Get enemy player ID
 func get_enemy_id() -> int:
 	return 1 - owner_id
+
 
 ## Summon a minion
 func summon_minion(player_id: int, card_to_summon: CardData) -> void:

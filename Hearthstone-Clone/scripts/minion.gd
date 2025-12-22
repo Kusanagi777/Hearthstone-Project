@@ -1,11 +1,12 @@
-class_name minion
+# res://scripts/minion.gd
+class_name Minion
 extends Control
 
-## Signals
-signal minion_clicked(minion: Node)
-signal minion_targeted(minion: Node)
-signal minion_drag_started(minion: Node)
-signal minion_drag_ended(minion: Node, global_position: Vector2)
+## Signals - using 'm' instead of 'minion' to avoid class name conflict
+signal minion_clicked(m: Node)
+signal minion_targeted(m: Node)
+signal minion_drag_started(m: Node)
+signal minion_drag_ended(m: Node, global_pos: Vector2)
 
 ## Card data
 var card_data: CardData
@@ -30,8 +31,6 @@ var attacks_this_turn: int = 0
 
 ## Visual state
 var is_targetable: bool = false
-# Note: _is_dragging is now effectively unused for movement, 
-# but kept to prevent errors if referenced elsewhere.
 var _is_dragging: bool = false
 var _drag_offset: Vector2 = Vector2.ZERO
 
@@ -206,77 +205,53 @@ func _update_visuals() -> void:
 	
 	if health_label:
 		health_label.text = str(current_health)
-		if current_health > max_health:
+		if card_data and current_health > card_data.health:
 			health_label.add_theme_color_override("font_color", Color.GREEN)
 		elif current_health < max_health:
 			health_label.add_theme_color_override("font_color", Color.RED)
 		else:
 			health_label.add_theme_color_override("font_color", Color.WHITE)
 	
+	# Taunt border visibility
 	if taunt_border:
 		taunt_border.visible = has_taunt
 	
+	# Divine shield effect
 	if divine_shield_effect:
 		divine_shield_effect.visible = has_divine_shield
 	
+	# Sleeping icon for just-played minions
 	if sleeping_icon:
-		sleeping_icon.visible = just_played and not has_charge and not has_rush
-	
-	_update_can_attack_visual()
-	_update_row_visual()
-
-
-func _update_row_visual() -> void:
-	# Visual indicator for back row (slightly darker/different border)
-	if frame:
-		var style = frame.get_theme_stylebox("panel")
-		if style is StyleBoxFlat:
-			var new_style: StyleBoxFlat = style.duplicate()
-			if is_front_row:
-				new_style.border_color = Color(0.4, 0.35, 0.25)
-			else:
-				new_style.border_color = Color(0.3, 0.3, 0.4)  # Bluish for back row
-				if has_snipe:
-					new_style.border_color = Color(0.5, 0.3, 0.5)  # Purple for snipe
-			frame.add_theme_stylebox_override("panel", new_style)
+		sleeping_icon.visible = just_played and not has_charge
 
 
 func can_attack() -> bool:
-	if has_attacked:
+	if just_played and not has_charge and not has_rush:
 		return false
-	if just_played:
-		if has_charge:
-			return true
-		if has_rush:
-			return true
+	if has_attacked and not has_windfury:
 		return false
-	if current_attack <= 0:
+	if has_windfury and attacks_this_turn >= 2:
 		return false
 	return true
 
 
 func can_attack_from_row() -> bool:
-	# Back row can only attack with Snipe
+	# Back row minions can only attack if they have Snipe
 	if not is_front_row and not has_snipe:
 		return false
 	return can_attack()
 
 
 func take_damage(amount: int) -> void:
-	if has_divine_shield:
-		remove_divine_shield()
-		_play_damage_effect(0)
+	if has_divine_shield and amount > 0:
+		has_divine_shield = false
+		_update_visuals()
+		_play_damage_effect(0)  # Shield absorbed
 		return
 	
 	current_health -= amount
 	_update_visuals()
 	_play_damage_effect(amount)
-
-
-func remove_divine_shield() -> void:
-	has_divine_shield = false
-	if divine_shield_effect:
-		divine_shield_effect.visible = false
 
 
 func heal(amount: int) -> void:
@@ -344,8 +319,6 @@ func _gui_input(event: InputEvent) -> void:
 func _start_drag(_global_pos: Vector2) -> void:
 	# If we own this minion and can move it, allow interaction
 	if owner_id == GameManager.active_player and not has_attacked and not has_moved_this_turn:
-		# CHANGED: We do NOT set _is_dragging = true.
-		# We do NOT set z_index.
 		# We ONLY emit the signal so PlayerController spawns the targeting arrow.
 		minion_drag_started.emit(self)
 	else:
@@ -357,13 +330,12 @@ func _start_drag(_global_pos: Vector2) -> void:
 
 
 func _update_drag(_global_pos: Vector2) -> void:
-	# CHANGED: Disabled physical movement.
-	# The minion stays in its slot while the arrow is dragged by the controller.
+	# Disabled physical movement - minion stays in slot
 	pass
 
 
 func _end_drag(_global_pos: Vector2) -> void:
-	# CHANGED: No cleanup needed since we didn't start a physical drag.
+	# No cleanup needed since we didn't start a physical drag
 	pass
 
 
