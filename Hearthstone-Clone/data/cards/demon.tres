@@ -1,12 +1,12 @@
-[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3 uid="uid://cxa5tk0sius4j"]
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3 uid="uid://bbch6njxbpjlw"]
 
-[ext_resource type="Script" uid="uid://bbch6njxbpjlw" path="res://Resources/card_data.gd" id="1_sdl2x"]
+[ext_resource type="Script" uid="uid://1prkicmuv6ut" path="res://data/card_data.gd" id="1_script"]
 
 [resource]
-script = ExtResource("1_sdl2x")
+script = ExtResource("1_script")
 id = "demon"
 card_name = "Demon"
-cost = 9
+cost = 8
 attack = 8
 health = 8
 metadata/_custom_type_script = "uid://bbch6njxbpjlw"

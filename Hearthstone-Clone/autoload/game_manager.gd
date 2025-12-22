@@ -730,3 +730,54 @@ func is_valid_attack_target(attacker_owner: int, target: Variant) -> bool:
 	
 	# Trying to attack hero with taunts on board
 	return false
+
+## Scenes where deck builder key is disabled (during active gameplay)
+const BATTLE_SCENES: Array[String] = [
+	"res://scenes/main_game.tscn",
+]
+
+## Track current scene for deck builder navigation
+var _current_scene_path: String = ""
+
+
+## Global input handler - handles deck builder key outside of battle
+func _input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo:
+		# 'B' key opens deck builder (outside of battle)
+		if event.keycode == KEY_B:
+			_try_open_deck_builder()
+
+
+## Check if we can open the deck builder and do so
+func _try_open_deck_builder() -> void:
+	# Don't open during active gameplay
+	if current_phase != GamePhase.IDLE and current_phase != GamePhase.GAME_OVER:
+		print("[GameManager] Cannot open deck builder during battle")
+		return
+	
+	# Get current scene path
+	var current_scene := get_tree().current_scene
+	if not current_scene:
+		return
+	
+	var scene_path := current_scene.scene_file_path
+	
+	# Don't open if already in deck builder
+	if scene_path == "res://scenes/deck_builder.tscn":
+		return
+	
+	# Don't open from battle scenes (extra safety check)
+	if scene_path in BATTLE_SCENES:
+		print("[GameManager] Cannot open deck builder from battle")
+		return
+	
+	# Store return scene
+	set_meta("deck_builder_return_scene", scene_path)
+	
+	print("[GameManager] Opening deck builder (will return to: %s)" % scene_path)
+	get_tree().change_scene_to_file("res://scenes/deck_builder.tscn")
+
+
+## Helper to check if we're in a battle
+func is_in_battle() -> bool:
+	return current_phase != GamePhase.IDLE and current_phase != GamePhase.GAME_OVER
