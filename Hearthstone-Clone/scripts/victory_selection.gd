@@ -1,4 +1,4 @@
-# res://victory_selection.gd
+# res://scripts/victory_selection.gd
 extends Control
 
 ## Path to card resources
@@ -46,11 +46,25 @@ func _load_card_database() -> void:
 			if not dir.current_is_dir() and file_name.ends_with(".tres"):
 				var card_path = CARDS_PATH + file_name
 				var card_data = load(card_path) as CardData
-				if card_data and not card_data.is_token:
-					_all_cards.append(card_data)
+				if card_data:
+					# Only add non-token cards (check via tags if needed)
+					var dominated_by_tokens = card_data.tags.has("Token") if card_data.tags else false
+					if not dominated_by_tokens:
+						_all_cards.append(card_data)
 			file_name = dir.get_next()
+		dir.list_dir_end()
 	else:
-		push_error("An error occurred when trying to access the path: " + CARDS_PATH)
+		push_error("[VictorySelection] Could not open cards path: " + CARDS_PATH)
+		# Add some fallback cards for testing
+		_generate_fallback_cards()
+	
+	print("[VictorySelection] Loaded %d cards for rewards" % _all_cards.size())
+
+
+func _generate_fallback_cards() -> void:
+	# If no cards loaded, we still need something to show
+	# This shouldn't happen in production but helps during development
+	print("[VictorySelection] Using fallback card generation")
 
 
 ## Creates 3 buckets, each containing 3 random cards
@@ -110,33 +124,35 @@ func _create_bucket_ui(index: int) -> void:
 	btn_style.bg_color = Color(0.2, 0.4, 0.3)
 	btn_style.border_color = Color(0.4, 0.7, 0.5)
 	btn_style.set_border_width_all(2)
-	btn_style.set_corner_radius_all(8)
+	btn_style.set_corner_radius_all(6)
 	btn_style.set_content_margin_all(10)
 	select_btn.add_theme_stylebox_override("normal", btn_style)
 	
 	var hover_style = btn_style.duplicate()
 	hover_style.bg_color = Color(0.25, 0.5, 0.35)
+	hover_style.border_color = Color(0.5, 0.8, 0.6)
 	select_btn.add_theme_stylebox_override("hover", hover_style)
 	
-	select_btn.add_theme_font_size_override("font_size", 16)
-	select_btn.add_theme_color_override("font_color", Color(0.95, 0.95, 0.9))
+	select_btn.add_theme_font_size_override("font_size", 18)
+	select_btn.add_theme_color_override("font_color", Color(0.9, 0.95, 0.9))
 	
-	# Connect signal to handle selection
+	# Connect the button - pass the cards for this bucket
 	select_btn.pressed.connect(_on_bucket_selected.bind(bucket_cards))
-	
 	content_vbox.add_child(select_btn)
+	
 	buckets_container.add_child(bucket_panel)
 
 
-func _create_card_display(card: CardData) -> Control:
+## Creates a simple card display panel
+func _create_card_display(card: CardData) -> PanelContainer:
 	var panel = PanelContainer.new()
-	panel.custom_minimum_size = Vector2(160, 100)
+	panel.custom_minimum_size = Vector2(150, 100)
 	
 	var rarity_color = _get_rarity_color(card.rarity)
 	
 	var style = StyleBoxFlat.new()
-	style.bg_color = rarity_color.darkened(0.8)
-	style.border_color = rarity_color.darkened(0.4)
+	style.bg_color = Color(0.08, 0.1, 0.15)
+	style.border_color = rarity_color.darkened(0.3)
 	style.set_border_width_all(2)
 	style.set_corner_radius_all(6)
 	style.set_content_margin_all(8)
@@ -150,7 +166,7 @@ func _create_card_display(card: CardData) -> Control:
 	var mana = Label.new()
 	mana.text = "🔷 %d" % card.cost
 	mana.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	mana.add_theme_font_size_override("font_size", 14)
+	mana.add_theme_font_size_override("font_size", 16)
 	mana.add_theme_color_override("font_color", Color(0.3, 0.6, 1.0))
 	vbox.add_child(mana)
 	
@@ -194,7 +210,7 @@ func _get_rarity_color(rarity: CardData.Rarity) -> Color:
 
 ## Called when a user chooses a bucket
 func _on_bucket_selected(cards_to_add: Array[CardData]) -> void:
-	print("[Victory] Selected bucket with cards: ", cards_to_add)
+	print("[VictorySelection] Selected bucket with %d cards" % cards_to_add.size())
 	
 	# 1. Retrieve the current run deck from GameManager
 	var current_deck_meta = {}
@@ -209,11 +225,12 @@ func _on_bucket_selected(cards_to_add: Array[CardData]) -> void:
 	for card in cards_to_add:
 		var card_id = card.id if not card.id.is_empty() else card.card_name.to_lower()
 		current_deck_meta["cards"].append(card_id)
+		print("[VictorySelection] Added card: %s" % card_id)
 	
 	# 3. Save updated deck back to GameManager
 	GameManager.set_meta("selected_deck", current_deck_meta)
 	
-	print("[Victory] Updated Deck: ", current_deck_meta["cards"])
+	print("[VictorySelection] Updated Deck now has %d cards" % current_deck_meta["cards"].size())
 	
 	# 4. Award gold for winning
 	var gold_reward: int = 50
@@ -224,9 +241,12 @@ func _on_bucket_selected(cards_to_add: Array[CardData]) -> void:
 	var player_gold: int = GameManager.get_meta("player_gold") if GameManager.has_meta("player_gold") else 0
 	player_gold += gold_reward
 	GameManager.set_meta("player_gold", player_gold)
-	print("[Victory] Awarded %d gold. Total: %d" % [gold_reward, player_gold])
+	print("[VictorySelection] Awarded %d gold. Total: %d" % [gold_reward, player_gold])
 	
-	# 5. Check if we should return to week runner
+	# 5. Reset game state for next battle
+	GameManager.reset_game()
+	
+	# 6. Check if we should return to week runner
 	if GameManager.has_meta("return_to_week_runner") and GameManager.get_meta("return_to_week_runner"):
 		# Clear the flag
 		GameManager.set_meta("return_to_week_runner", false)
@@ -236,20 +256,17 @@ func _on_bucket_selected(cards_to_add: Array[CardData]) -> void:
 		current_day += 1
 		GameManager.set_meta("current_day_index", current_day)
 		
-		print("[Victory] Returning to week runner, advancing to day %d" % (current_day + 1))
-		
-		# Reset game state for next battle
-		GameManager.reset_game()
+		print("[VictorySelection] Returning to week runner, advancing to day %d" % (current_day + 1))
 		
 		get_tree().change_scene_to_file("res://scenes/week_runner.tscn")
 	else:
-		# Default behavior - go back to main game for another battle
-		GameManager.reset_game()
-		get_tree().change_scene_to_file("res://scenes/main_game.tscn")
+		# Default behavior - go back to main menu or main game
+		get_tree().change_scene_to_file("res://scenes/start_screen.tscn")
 
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed:
 		if event.keycode == KEY_ESCAPE:
 			# Allow skipping reward selection (go with no reward)
-			_on_bucket_selected([])
+			var empty_cards: Array[CardData] = []
+			_on_bucket_selected(empty_cards)

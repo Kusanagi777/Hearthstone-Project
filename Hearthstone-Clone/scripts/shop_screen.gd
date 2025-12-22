@@ -1,133 +1,191 @@
 # res://scripts/shop_screen.gd
 extends Control
 
-## Signals
-signal purchase_made(item_type: String, item_data: Dictionary)
+## Shop screen where players can buy cards and upgrades
+## Accessed during the weekly schedule
 
-## Scene references
-@export var card_ui_scene: PackedScene
+const REFERENCE_HEIGHT: float = 720.0
 
-## UI References
-@export var booster_container: HBoxContainer
-@export var singles_container: HBoxContainer
-@export var gold_label: Label
-@export var back_button: Button
-@export var title_label: Label
+## Shop inventory categories
+enum ShopTab { CARDS, UPGRADES, PACKS }
 
-## Booster pack definitions
-var booster_types: Array[Dictionary] = [
+## Current player gold (loaded from GameManager)
+var player_gold: int = 0
+
+## Currently selected tab
+var current_tab: ShopTab = ShopTab.CARDS
+
+## Shop items - cards available for purchase
+var card_shop_items: Array[Dictionary] = []
+
+## Shop items - upgrades available for purchase  
+var upgrade_shop_items: Array[Dictionary] = [
+	{
+		"id": "max_hand_size",
+		"name": "Bigger Hands",
+		"description": "Increase max hand size by 1",
+		"cost": 200,
+		"icon": "✋"
+	},
+	{
+		"id": "starting_mana",
+		"name": "Mana Crystal",
+		"description": "Start battles with +1 mana",
+		"cost": 300,
+		"icon": "💎"
+	},
+	{
+		"id": "card_draw",
+		"name": "Card Draw",
+		"description": "Draw +1 card at start of battle",
+		"cost": 250,
+		"icon": "🃏"
+	}
+]
+
+## Pack items
+var pack_shop_items: Array[Dictionary] = [
 	{
 		"id": "basic_pack",
 		"name": "Basic Pack",
 		"description": "Contains 3 random cards",
-		"card_count": 3,
-		"price": 50,
-		"color": Color(0.4, 0.5, 0.6),
-		"icon": "📦",
-		"guaranteed_rare": false
+		"cost": 100,
+		"icon": "📦"
 	},
 	{
-		"id": "premium_pack",
-		"name": "Premium Pack",
-		"description": "Contains 5 cards with 1 guaranteed rare",
-		"card_count": 5,
-		"price": 100,
-		"color": Color(0.3, 0.5, 0.8),
-		"icon": "💎",
-		"guaranteed_rare": true
-	},
-	{
-		"id": "mega_pack",
-		"name": "Mega Pack",
-		"description": "Contains 8 cards with 2 guaranteed rares",
-		"card_count": 8,
-		"price": 175,
-		"color": Color(0.6, 0.3, 0.7),
-		"icon": "🎁",
-		"guaranteed_rare": true,
-		"rare_count": 2
-	},
-	{
-		"id": "class_pack",
-		"name": "Class Pack",
-		"description": "Contains 5 cards for your class",
-		"card_count": 5,
-		"price": 120,
-		"color": Color(0.8, 0.6, 0.2),
-		"icon": "⭐",
-		"class_specific": true
-	},
-	{
-		"id": "legendary_pack",
-		"name": "Legendary Pack",
-		"description": "Contains 3 cards with 1 guaranteed legendary",
-		"card_count": 3,
-		"price": 250,
-		"color": Color(1.0, 0.7, 0.2),
-		"icon": "👑",
-		"guaranteed_legendary": true
+		"id": "rare_pack",
+		"name": "Rare Pack",
+		"description": "Contains 3 cards (1 guaranteed rare)",
+		"cost": 200,
+		"icon": "🎁"
 	}
 ]
 
-## Card pool path
-const CARDS_PATH = "res://data/cards/"
+## UI References
+var title_label: Label
+var gold_label: Label
+var tab_container: HBoxContainer
+var items_container: GridContainer
+var description_label: RichTextLabel
+var back_button: Button
+var buy_button: Button
 
-## All available cards
-var _all_cards: Array[CardData] = []
-
-## Currently displayed boosters
-var _current_boosters: Array[Dictionary] = []
-
-## Currently displayed singles
-var _current_singles: Array[CardData] = []
-
-## Player's gold (synced with GameManager)
-var player_gold: int = 200
-
-## Reference resolution
-const REFERENCE_HEIGHT = 720.0
+## Currently selected item
+var selected_item: Dictionary = {}
+var selected_item_panel: PanelContainer = null
 
 
 func _ready() -> void:
-	# Sync gold with GameManager
+	# Load player gold
 	if GameManager.has_meta("player_gold"):
 		player_gold = GameManager.get_meta("player_gold")
 	else:
+		player_gold = 200
 		GameManager.set_meta("player_gold", player_gold)
 	
+	# Load cards from the database
 	_load_card_database()
+	
 	_setup_ui()
-	_connect_signals()
 	_apply_styling()
-	_generate_shop_inventory()
-	_update_gold_display()
+	_populate_items()
 	
 	get_viewport().size_changed.connect(_on_viewport_size_changed)
-
-
-func get_scale_factor() -> float:
-	var viewport_size = DisplayServer.window_get_size()
-	return clampf(viewport_size.y / REFERENCE_HEIGHT, 1.0, 3.0)
-
-
-func _on_viewport_size_changed() -> void:
-	_apply_responsive_fonts()
+	
+	print("[ShopScreen] Opened with %d gold" % player_gold)
 
 
 func _load_card_database() -> void:
-	var dir = DirAccess.open(CARDS_PATH)
-	if dir:
-		dir.list_dir_begin()
-		var file_name = dir.get_next()
-		while file_name != "":
-			if not dir.current_is_dir() and file_name.ends_with(".tres"):
-				var card_path = CARDS_PATH + file_name
-				var card_data = load(card_path) as CardData
-				if card_data and not card_data.is_token:
-					_all_cards.append(card_data)
-			file_name = dir.get_next()
-	else:
-		push_error("[Shop] Could not access cards path: " + CARDS_PATH)
+	## Load cards from res://data/cards/ directory
+	var cards_dir := "res://data/cards/"
+	var dir := DirAccess.open(cards_dir)
+	
+	if dir == null:
+		print("[ShopScreen] Warning: Could not open cards directory, using fallback cards")
+		_generate_fallback_cards()
+		return
+	
+	var all_cards: Array[Dictionary] = []
+	
+	dir.list_dir_begin()
+	var file_name := dir.get_next()
+	
+	while file_name != "":
+		if file_name.ends_with(".tres"):
+			var card_path := cards_dir + file_name
+			var card_resource = load(card_path)
+			
+			if card_resource and card_resource is CardData:
+				var card_data: CardData = card_resource
+				
+				# Determine price based on stats and rarity
+				var base_price := (card_data.cost * 15) + (card_data.attack * 10) + (card_data.health * 8)
+				
+				# Adjust for rarity
+				match card_data.rarity:
+					CardData.Rarity.RARE:
+						base_price = int(base_price * 1.5)
+					CardData.Rarity.EPIC:
+						base_price = int(base_price * 2.0)
+					CardData.Rarity.LEGENDARY:
+						base_price = int(base_price * 3.0)
+				
+				# Minimum price
+				base_price = maxi(base_price, 30)
+				
+				# Determine icon based on card type
+				var icon := "🃏"
+				match card_data.card_type:
+					CardData.CardType.MINION:
+						icon = "👤"
+					CardData.CardType.SPELL:
+						icon = "✨"
+					CardData.CardType.WEAPON:
+						icon = "⚔️"
+				
+				all_cards.append({
+					"card_data": card_data,
+					"name": card_data.card_name,
+					"cost": card_data.cost,
+					"attack": card_data.attack,
+					"health": card_data.health,
+					"price": base_price,
+					"icon": icon,
+					"description": card_data.description if card_data.description != "" else "A %s card." % card_data.card_name,
+					"is_spell": card_data.card_type == CardData.CardType.SPELL
+				})
+		
+		file_name = dir.get_next()
+	
+	dir.list_dir_end()
+	
+	if all_cards.is_empty():
+		print("[ShopScreen] No cards found in database, using fallback")
+		_generate_fallback_cards()
+		return
+	
+	# Shuffle and pick up to 6 random cards for the shop
+	all_cards.shuffle()
+	for i in range(mini(6, all_cards.size())):
+		card_shop_items.append(all_cards[i])
+	
+	print("[ShopScreen] Loaded %d cards for shop" % card_shop_items.size())
+
+
+func _generate_fallback_cards() -> void:
+	## Fallback cards if database loading fails
+	var sample_cards: Array[Dictionary] = [
+		{"name": "Flame Imp", "cost": 1, "attack": 3, "health": 2, "price": 50, "icon": "🔥", "description": "A fiery demon."},
+		{"name": "Shield Bearer", "cost": 1, "attack": 0, "health": 4, "price": 40, "icon": "🛡️", "description": "Taunt."},
+		{"name": "River Croc", "cost": 2, "attack": 2, "health": 3, "price": 60, "icon": "🐊", "description": "A hungry croc."},
+		{"name": "Arcane Intellect", "cost": 3, "attack": 0, "health": 0, "price": 80, "icon": "📚", "description": "Draw 2 cards.", "is_spell": true},
+		{"name": "Fireball", "cost": 4, "attack": 6, "health": 0, "price": 100, "icon": "☄️", "description": "Deal 6 damage.", "is_spell": true},
+		{"name": "Boulderfist Ogre", "cost": 6, "attack": 6, "health": 7, "price": 120, "icon": "👹", "description": "ME SMASH!"},
+	]
+	
+	sample_cards.shuffle()
+	for i in range(mini(4, sample_cards.size())):
+		card_shop_items.append(sample_cards[i])
 
 
 func _setup_ui() -> void:
@@ -137,7 +195,7 @@ func _setup_ui() -> void:
 	bg.color = Color(0.08, 0.1, 0.14)
 	add_child(bg)
 	
-	# Main margin
+	# Main margin container
 	var margin = MarginContainer.new()
 	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
 	margin.add_theme_constant_override("margin_left", 40)
@@ -147,252 +205,174 @@ func _setup_ui() -> void:
 	add_child(margin)
 	
 	var main_vbox = VBoxContainer.new()
-	main_vbox.add_theme_constant_override("separation", 20)
+	main_vbox.add_theme_constant_override("separation", 15)
 	margin.add_child(main_vbox)
 	
-	# Header
+	# Header row (title + gold)
 	var header = HBoxContainer.new()
 	header.add_theme_constant_override("separation", 20)
 	main_vbox.add_child(header)
 	
-	# Back button
-	back_button = Button.new()
-	back_button.text = "← Done"
-	back_button.custom_minimum_size = Vector2(100, 40)
-	header.add_child(back_button)
-	
-	# Title
 	title_label = Label.new()
-	title_label.text = "🛒 Card Shop"
-	title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title_label.add_theme_font_size_override("font_size", 32)
+	title_label.text = "🛒 Shop"
+	title_label.add_theme_font_size_override("font_size", 36)
 	title_label.add_theme_color_override("font_color", Color(0.9, 0.85, 0.7))
+	title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title_label)
 	
-	# Gold display
-	var gold_hbox = HBoxContainer.new()
-	gold_hbox.add_theme_constant_override("separation", 8)
-	header.add_child(gold_hbox)
-	
-	var gold_icon = Label.new()
-	gold_icon.text = "💰"
-	gold_icon.add_theme_font_size_override("font_size", 24)
-	gold_hbox.add_child(gold_icon)
-	
 	gold_label = Label.new()
-	gold_label.text = str(player_gold)
+	gold_label.text = "💰 %d Gold" % player_gold
 	gold_label.add_theme_font_size_override("font_size", 24)
 	gold_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
-	gold_hbox.add_child(gold_label)
+	header.add_child(gold_label)
 	
-	# Booster section
-	var booster_label = Label.new()
-	booster_label.text = "Card Packs"
-	booster_label.add_theme_font_size_override("font_size", 20)
-	booster_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.75))
-	main_vbox.add_child(booster_label)
+	main_vbox.add_child(HSeparator.new())
 	
-	# Booster scroll
-	var booster_scroll = ScrollContainer.new()
-	booster_scroll.custom_minimum_size.y = 220
-	booster_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	main_vbox.add_child(booster_scroll)
+	# Tab buttons
+	tab_container = HBoxContainer.new()
+	tab_container.alignment = BoxContainer.ALIGNMENT_CENTER
+	tab_container.add_theme_constant_override("separation", 10)
+	main_vbox.add_child(tab_container)
 	
-	booster_container = HBoxContainer.new()
-	booster_container.add_theme_constant_override("separation", 15)
-	booster_scroll.add_child(booster_container)
+	_create_tab_button("Cards", ShopTab.CARDS)
+	_create_tab_button("Upgrades", ShopTab.UPGRADES)
+	_create_tab_button("Packs", ShopTab.PACKS)
 	
-	# Singles section
-	var singles_label = Label.new()
-	singles_label.text = "Individual Cards"
-	singles_label.add_theme_font_size_override("font_size", 20)
-	singles_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.75))
-	main_vbox.add_child(singles_label)
+	# Items grid
+	var items_scroll = ScrollContainer.new()
+	items_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	items_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	main_vbox.add_child(items_scroll)
 	
-	# Singles scroll
-	var singles_scroll = ScrollContainer.new()
-	singles_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	singles_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	main_vbox.add_child(singles_scroll)
+	items_container = GridContainer.new()
+	items_container.columns = 4
+	items_container.add_theme_constant_override("h_separation", 15)
+	items_container.add_theme_constant_override("v_separation", 15)
+	items_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	items_scroll.add_child(items_container)
 	
-	singles_container = HBoxContainer.new()
-	singles_container.add_theme_constant_override("separation", 15)
-	singles_scroll.add_child(singles_container)
+	# Description area
+	description_label = RichTextLabel.new()
+	description_label.bbcode_enabled = true
+	description_label.custom_minimum_size = Vector2(0, 60)
+	description_label.fit_content = true
+	description_label.scroll_active = false
+	description_label.add_theme_color_override("default_color", Color(0.7, 0.7, 0.8))
+	main_vbox.add_child(description_label)
 	
-	# Refresh button
-	var refresh_btn = Button.new()
-	refresh_btn.text = "🔄 Refresh Shop"
-	refresh_btn.custom_minimum_size = Vector2(150, 40)
-	refresh_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	refresh_btn.pressed.connect(_on_refresh_pressed)
-	main_vbox.add_child(refresh_btn)
-	_style_button(refresh_btn)
+	# Bottom buttons
+	var button_row = HBoxContainer.new()
+	button_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	button_row.add_theme_constant_override("separation", 20)
+	main_vbox.add_child(button_row)
+	
+	back_button = Button.new()
+	back_button.text = "← Back"
+	back_button.custom_minimum_size = Vector2(120, 45)
+	back_button.pressed.connect(_on_back_pressed)
+	button_row.add_child(back_button)
+	
+	buy_button = Button.new()
+	buy_button.text = "Buy"
+	buy_button.custom_minimum_size = Vector2(150, 45)
+	buy_button.disabled = true
+	buy_button.pressed.connect(_on_buy_pressed)
+	button_row.add_child(buy_button)
 
 
-func _connect_signals() -> void:
-	if back_button:
-		back_button.pressed.connect(_on_back_pressed)
+func _create_tab_button(text: String, tab: ShopTab) -> void:
+	var btn = Button.new()
+	btn.text = text
+	btn.custom_minimum_size = Vector2(100, 35)
+	btn.toggle_mode = true
+	btn.button_pressed = (tab == current_tab)
+	btn.pressed.connect(func(): _on_tab_selected(tab))
+	tab_container.add_child(btn)
 
 
-func _apply_styling() -> void:
-	_style_button(back_button)
+func _on_tab_selected(tab: ShopTab) -> void:
+	current_tab = tab
+	selected_item = {}
+	selected_item_panel = null
+	
+	# Update tab button states
+	var tabs = tab_container.get_children()
+	for i in range(tabs.size()):
+		if tabs[i] is Button:
+			tabs[i].button_pressed = (i == tab)
+	
+	_populate_items()
+	_update_buy_button()
 
 
-func _apply_responsive_fonts() -> void:
-	var scale = get_scale_factor()
-	if title_label:
-		title_label.add_theme_font_size_override("font_size", int(32 * scale))
-	if gold_label:
-		gold_label.add_theme_font_size_override("font_size", int(24 * scale))
-
-
-func _generate_shop_inventory() -> void:
-	_generate_boosters()
-	_generate_singles()
-
-
-func _generate_boosters() -> void:
-	# Clear existing
-	for child in booster_container.get_children():
+func _populate_items() -> void:
+	# Clear existing items
+	for child in items_container.get_children():
 		child.queue_free()
 	
-	_current_boosters = booster_types.duplicate(true)
+	var items: Array[Dictionary] = []
+	match current_tab:
+		ShopTab.CARDS:
+			items.assign(card_shop_items)
+		ShopTab.UPGRADES:
+			items.assign(upgrade_shop_items)
+		ShopTab.PACKS:
+			items.assign(pack_shop_items)
 	
-	for i in range(_current_boosters.size()):
-		var booster = _current_boosters[i]
-		var booster_ui = _create_booster_ui(booster, i)
-		booster_container.add_child(booster_ui)
+	for item in items:
+		var panel = _create_item_panel(item)
+		items_container.add_child(panel)
 
 
-func _generate_singles() -> void:
-	# Clear existing
-	for child in singles_container.get_children():
-		child.queue_free()
-	
-	_current_singles.clear()
-	
-	if _all_cards.is_empty():
-		return
-	
-	# Pick 6 random cards
-	var shuffled = _all_cards.duplicate()
-	shuffled.shuffle()
-	
-	for i in range(mini(6, shuffled.size())):
-		var card = shuffled[i]
-		_current_singles.append(card)
-		var card_ui = _create_single_ui(card, i)
-		singles_container.add_child(card_ui)
-
-
-func _create_booster_ui(booster: Dictionary, index: int) -> Control:
+func _create_item_panel(item: Dictionary) -> PanelContainer:
 	var panel = PanelContainer.new()
-	panel.custom_minimum_size = Vector2(160, 200)
+	panel.custom_minimum_size = Vector2(150, 180)
 	
-	_style_panel(panel, booster["color"].darkened(0.7))
-	
-	var margin = MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 12)
-	margin.add_theme_constant_override("margin_right", 12)
-	margin.add_theme_constant_override("margin_top", 12)
-	margin.add_theme_constant_override("margin_bottom", 12)
-	panel.add_child(margin)
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.15, 0.18, 0.25)
+	style.border_color = Color(0.4, 0.35, 0.3)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(8)
+	style.set_content_margin_all(10)
+	panel.add_theme_stylebox_override("panel", style)
 	
 	var vbox = VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 8)
-	margin.add_child(vbox)
+	vbox.add_theme_constant_override("separation", 5)
+	panel.add_child(vbox)
 	
 	# Icon
-	var icon = Label.new()
-	icon.text = booster["icon"]
-	icon.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	icon.add_theme_font_size_override("font_size", 36)
-	vbox.add_child(icon)
+	var icon_label = Label.new()
+	icon_label.text = item.get("icon", "?")
+	icon_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	icon_label.add_theme_font_size_override("font_size", 36)
+	vbox.add_child(icon_label)
 	
 	# Name
 	var name_label = Label.new()
-	name_label.text = booster["name"]
+	name_label.text = item.get("name", "Unknown")
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_label.add_theme_font_size_override("font_size", 14)
-	name_label.add_theme_color_override("font_color", booster["color"])
+	name_label.add_theme_color_override("font_color", Color(0.9, 0.9, 0.9))
+	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD
 	vbox.add_child(name_label)
 	
-	# Description
-	var desc = Label.new()
-	desc.text = booster["description"]
-	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	desc.add_theme_font_size_override("font_size", 10)
-	desc.add_theme_color_override("font_color", Color(0.6, 0.6, 0.65))
-	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	vbox.add_child(desc)
-	
-	# Spacer
-	var spacer = Control.new()
-	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	vbox.add_child(spacer)
-	
-	# Price & Buy button
-	var buy_btn = Button.new()
-	buy_btn.text = "Buy: %d 💰" % booster["price"]
-	buy_btn.disabled = player_gold < booster["price"]
-	buy_btn.pressed.connect(_on_booster_purchased.bind(index))
-	_style_button(buy_btn)
-	vbox.add_child(buy_btn)
-	
-	return panel
-
-
-func _create_single_ui(card: CardData, index: int) -> Control:
-	var panel = PanelContainer.new()
-	panel.custom_minimum_size = Vector2(140, 220)
-	
-	var rarity_color = _get_rarity_color(card.rarity)
-	_style_panel(panel, rarity_color.darkened(0.8))
-	
-	var margin = MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 8)
-	margin.add_theme_constant_override("margin_right", 8)
-	margin.add_theme_constant_override("margin_top", 8)
-	margin.add_theme_constant_override("margin_bottom", 8)
-	panel.add_child(margin)
-	
-	var vbox = VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 6)
-	margin.add_child(vbox)
-	
-	# Mana cost
-	var mana = Label.new()
-	mana.text = "🔷 %d" % card.cost
-	mana.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	mana.add_theme_font_size_override("font_size", 16)
-	mana.add_theme_color_override("font_color", Color(0.3, 0.6, 1.0))
-	vbox.add_child(mana)
-	
-	# Name
-	var name_lbl = Label.new()
-	name_lbl.text = card.card_name
-	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_lbl.add_theme_font_size_override("font_size", 13)
-	name_lbl.add_theme_color_override("font_color", rarity_color)
-	name_lbl.clip_text = true
-	vbox.add_child(name_lbl)
-	
-	# Stats
-	if card.card_type == CardData.CardType.MINION:
-		var stats = Label.new()
-		stats.text = "⚔️ %d  ❤️ %d" % [card.attack, card.health]
-		stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		stats.add_theme_font_size_override("font_size", 12)
-		vbox.add_child(stats)
-	
-	# Rarity
-	var rarity_lbl = Label.new()
-	rarity_lbl.text = CardData.Rarity.keys()[card.rarity]
-	rarity_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	rarity_lbl.add_theme_font_size_override("font_size", 10)
-	rarity_lbl.add_theme_color_override("font_color", rarity_color.darkened(0.2))
-	vbox.add_child(rarity_lbl)
+	# Mana cost (for cards)
+	if current_tab == ShopTab.CARDS:
+		var mana_label = Label.new()
+		mana_label.text = "🔷 %d" % item.get("cost", 0)
+		mana_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		mana_label.add_theme_font_size_override("font_size", 12)
+		mana_label.add_theme_color_override("font_color", Color(0.4, 0.6, 1.0))
+		vbox.add_child(mana_label)
+		
+		# Stats (for minions, not spells)
+		if not item.get("is_spell", false):
+			var stats_label = Label.new()
+			stats_label.text = "⚔️%d / ❤️%d" % [item.get("attack", 0), item.get("health", 0)]
+			stats_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			stats_label.add_theme_font_size_override("font_size", 12)
+			stats_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+			vbox.add_child(stats_label)
 	
 	# Spacer
 	var spacer = Control.new()
@@ -400,257 +380,104 @@ func _create_single_ui(card: CardData, index: int) -> Control:
 	vbox.add_child(spacer)
 	
 	# Price
-	var price = _get_card_price(card)
-	var buy_btn = Button.new()
-	buy_btn.text = "Buy: %d 💰" % price
-	buy_btn.disabled = player_gold < price
-	buy_btn.pressed.connect(_on_single_purchased.bind(index, price))
-	_style_button(buy_btn)
-	vbox.add_child(buy_btn)
+	var price = item.get("price", item.get("cost", 0))
+	var price_label = Label.new()
+	price_label.text = "💰 %d" % price
+	price_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	price_label.add_theme_font_size_override("font_size", 16)
+	
+	if price > player_gold:
+		price_label.add_theme_color_override("font_color", Color(0.8, 0.3, 0.3))
+	else:
+		price_label.add_theme_color_override("font_color", Color(0.3, 0.8, 0.3))
+	vbox.add_child(price_label)
+	
+	# Make clickable
+	panel.gui_input.connect(func(event): _on_item_clicked(event, panel, item))
+	panel.mouse_entered.connect(func(): _on_item_hover(item))
 	
 	return panel
 
 
-func _get_rarity_color(rarity: CardData.Rarity) -> Color:
-	match rarity:
-		CardData.Rarity.COMMON: return Color(0.7, 0.7, 0.7)
-		CardData.Rarity.RARE: return Color(0.3, 0.5, 0.9)
-		CardData.Rarity.EPIC: return Color(0.6, 0.3, 0.8)
-		CardData.Rarity.LEGENDARY: return Color(1.0, 0.7, 0.2)
-		_: return Color.WHITE
+func _on_item_clicked(event: InputEvent, panel: PanelContainer, item: Dictionary) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		# Deselect previous
+		if selected_item_panel and is_instance_valid(selected_item_panel):
+			var old_style = selected_item_panel.get_theme_stylebox("panel") as StyleBoxFlat
+			if old_style:
+				old_style.border_color = Color(0.4, 0.35, 0.3)
+		
+		# Select new
+		selected_item = item
+		selected_item_panel = panel
+		
+		var style = panel.get_theme_stylebox("panel") as StyleBoxFlat
+		if style:
+			style.border_color = Color(0.9, 0.75, 0.3)
+		
+		_update_buy_button()
+		_show_description(item)
 
 
-func _get_card_price(card: CardData) -> int:
-	match card.rarity:
-		CardData.Rarity.COMMON: return 25
-		CardData.Rarity.RARE: return 50
-		CardData.Rarity.EPIC: return 100
-		CardData.Rarity.LEGENDARY: return 200
-		_: return 30
+func _on_item_hover(item: Dictionary) -> void:
+	if selected_item.is_empty():
+		_show_description(item)
 
 
-func _update_gold_display() -> void:
-	if gold_label:
-		gold_label.text = str(player_gold)
-	
-	# Also save to GameManager
-	GameManager.set_meta("player_gold", player_gold)
-	
-	# Update buy button states
-	_update_buy_buttons()
+func _show_description(item: Dictionary) -> void:
+	var desc = item.get("description", "No description available.")
+	description_label.text = "[center]%s[/center]" % desc
 
 
-func _update_buy_buttons() -> void:
-	# Update booster buttons
-	for i in range(booster_container.get_child_count()):
-		var panel = booster_container.get_child(i)
-		if i < _current_boosters.size():
-			var price = _current_boosters[i]["price"]
-			var buy_button = _find_buy_button(panel)
-			if buy_button:
-				buy_button.disabled = player_gold < price
-	
-	# Update singles buttons
-	for i in range(singles_container.get_child_count()):
-		var panel = singles_container.get_child(i)
-		if i < _current_singles.size():
-			var card = _current_singles[i]
-			var price = _get_card_price(card)
-			var buy_button = _find_buy_button(panel)
-			if buy_button:
-				buy_button.disabled = player_gold < price
-
-
-func _find_buy_button(node: Node) -> Button:
-	if node is Button and node.text.begins_with("Buy"):
-		return node
-	for child in node.get_children():
-		var result = _find_buy_button(child)
-		if result:
-			return result
-	return null
-
-
-func _on_booster_purchased(index: int) -> void:
-	if index < 0 or index >= _current_boosters.size():
+func _update_buy_button() -> void:
+	if selected_item.is_empty():
+		buy_button.disabled = true
+		buy_button.text = "Buy"
 		return
 	
-	var booster = _current_boosters[index]
-	
-	if player_gold < booster["price"]:
-		print("[Shop] Not enough gold!")
+	var price = selected_item.get("price", selected_item.get("cost", 0))
+	buy_button.text = "Buy (%d 💰)" % price
+	buy_button.disabled = (price > player_gold)
+
+
+func _on_buy_pressed() -> void:
+	if selected_item.is_empty():
 		return
 	
-	# Deduct gold
-	player_gold -= booster["price"]
-	_update_gold_display()
-	
-	# Generate cards from booster
-	var cards = _open_booster(booster)
-	
-	print("[Shop] Purchased %s, received %d cards" % [booster["name"], cards.size()])
-	
-	# Add cards to player's collection
-	_add_cards_to_collection(cards)
-	
-	# Show reward popup
-	_show_booster_rewards(booster["name"], cards)
-	
-	purchase_made.emit("booster", booster)
-
-
-func _open_booster(booster: Dictionary) -> Array[CardData]:
-	var cards: Array[CardData] = []
-	var card_count: int = booster.get("card_count", 3)
-	
-	if _all_cards.is_empty():
-		return cards
-	
-	# Handle guaranteed rares/legendaries
-	var rare_count = booster.get("rare_count", 1) if booster.get("guaranteed_rare", false) else 0
-	var legendary_count = 1 if booster.get("guaranteed_legendary", false) else 0
-	
-	# Get rare cards
-	var rare_cards = _all_cards.filter(func(c): return c.rarity == CardData.Rarity.RARE or c.rarity == CardData.Rarity.EPIC)
-	var legendary_cards = _all_cards.filter(func(c): return c.rarity == CardData.Rarity.LEGENDARY)
-	
-	# Add guaranteed legendaries
-	for i in range(legendary_count):
-		if not legendary_cards.is_empty() and cards.size() < card_count:
-			var card = legendary_cards.pick_random()
-			cards.append(card.duplicate_for_play())
-	
-	# Add guaranteed rares
-	for i in range(rare_count):
-		if not rare_cards.is_empty() and cards.size() < card_count:
-			var card = rare_cards.pick_random()
-			cards.append(card.duplicate_for_play())
-	
-	# Fill remaining with random cards
-	while cards.size() < card_count:
-		var card = _all_cards.pick_random()
-		cards.append(card.duplicate_for_play())
-	
-	return cards
-
-
-func _on_single_purchased(index: int, price: int) -> void:
-	if index < 0 or index >= _current_singles.size():
-		return
-	
-	var card = _current_singles[index]
-	
-	if player_gold < price:
-		print("[Shop] Not enough gold!")
+	var price = selected_item.get("price", selected_item.get("cost", 0))
+	if price > player_gold:
 		return
 	
 	# Deduct gold
 	player_gold -= price
-	_update_gold_display()
+	GameManager.set_meta("player_gold", player_gold)
+	gold_label.text = "💰 %d Gold" % player_gold
 	
-	print("[Shop] Purchased single card: %s for %d gold" % [card.card_name, price])
+	# Handle the purchase based on type
+	var item_name = selected_item.get("name", "item")
+	print("[ShopScreen] Purchased: %s for %d gold" % [item_name, price])
 	
-	# Add to collection
-	_add_cards_to_collection([card])
+	# TODO: Add item to player inventory/deck
+	# For now, just show feedback
+	_show_purchase_feedback(item_name)
 	
-	purchase_made.emit("single", {"card": card, "price": price})
+	# Remove from shop (one-time purchase for cards)
+	if current_tab == ShopTab.CARDS:
+		card_shop_items.erase(selected_item)
 	
-	# Refresh singles
-	_generate_singles()
+	# Reset selection and refresh
+	selected_item = {}
+	selected_item_panel = null
+	_populate_items()
+	_update_buy_button()
 
 
-func _add_cards_to_collection(cards: Array) -> void:
-	# Get or create collection in GameManager
-	var collection: Array = []
-	if GameManager.has_meta("card_collection"):
-		collection = GameManager.get_meta("card_collection")
-	
-	for card in cards:
-		if card is CardData:
-			collection.append(card.id if not card.id.is_empty() else card.card_name.to_lower())
-	
-	GameManager.set_meta("card_collection", collection)
-	print("[Shop] Collection now has %d cards" % collection.size())
-
-
-func _show_booster_rewards(booster_name: String, cards: Array[CardData]) -> void:
-	# Create a popup to show rewards
-	var popup = PanelContainer.new()
-	popup.set_anchors_preset(Control.PRESET_CENTER)
-	popup.custom_minimum_size = Vector2(500, 350)
-	popup.z_index = 100
-	add_child(popup)
-	
-	_style_panel(popup, Color(0.12, 0.12, 0.15, 0.98))
-	
-	var margin = MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 20)
-	margin.add_theme_constant_override("margin_right", 20)
-	margin.add_theme_constant_override("margin_top", 20)
-	margin.add_theme_constant_override("margin_bottom", 20)
-	popup.add_child(margin)
-	
-	var vbox = VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 15)
-	margin.add_child(vbox)
-	
-	# Title
-	var title = Label.new()
-	title.text = "🎉 %s Opened!" % booster_name
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 24)
-	title.add_theme_color_override("font_color", Color(0.9, 0.85, 0.7))
-	vbox.add_child(title)
-	
-	# Cards container
-	var cards_hbox = HBoxContainer.new()
-	cards_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	cards_hbox.add_theme_constant_override("separation", 10)
-	vbox.add_child(cards_hbox)
-	
-	for card in cards:
-		var card_panel = PanelContainer.new()
-		card_panel.custom_minimum_size = Vector2(80, 100)
-		var rarity_color = _get_rarity_color(card.rarity)
-		_style_panel(card_panel, rarity_color.darkened(0.7))
-		
-		var card_vbox = VBoxContainer.new()
-		card_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
-		card_panel.add_child(card_vbox)
-		
-		var cost_lbl = Label.new()
-		cost_lbl.text = "🔷%d" % card.cost
-		cost_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		cost_lbl.add_theme_font_size_override("font_size", 12)
-		card_vbox.add_child(cost_lbl)
-		
-		var name_lbl = Label.new()
-		name_lbl.text = card.card_name
-		name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		name_lbl.add_theme_font_size_override("font_size", 11)
-		name_lbl.add_theme_color_override("font_color", rarity_color)
-		name_lbl.clip_text = true
-		card_vbox.add_child(name_lbl)
-		
-		cards_hbox.add_child(card_panel)
-	
-	# Close button
-	var close_btn = Button.new()
-	close_btn.text = "Nice!"
-	close_btn.custom_minimum_size = Vector2(100, 40)
-	close_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	close_btn.pressed.connect(popup.queue_free)
-	_style_button(close_btn)
-	vbox.add_child(close_btn)
-
-
-func _on_refresh_pressed() -> void:
-	_generate_shop_inventory()
-	print("[Shop] Shop inventory refreshed")
+func _show_purchase_feedback(item_name: String) -> void:
+	description_label.text = "[center][color=#55ff55]Purchased %s![/color][/center]" % item_name
 
 
 func _on_back_pressed() -> void:
-	# Check if we should return to week runner
+	# Check if we should return to week runner and advance the day
 	if GameManager.has_meta("return_to_week_runner") and GameManager.get_meta("return_to_week_runner"):
 		# Clear the flag
 		GameManager.set_meta("return_to_week_runner", false)
@@ -660,56 +487,53 @@ func _on_back_pressed() -> void:
 		current_day += 1
 		GameManager.set_meta("current_day_index", current_day)
 		
-		print("[Shop] Returning to week runner, advancing to day %d" % (current_day + 1))
+		print("[ShopScreen] Returning to week runner, advancing to day %d" % (current_day + 1))
 		get_tree().change_scene_to_file("res://scenes/week_runner.tscn")
 	else:
-		# Return to default (start screen or wherever)
+		# Return to start screen if not from week runner
 		get_tree().change_scene_to_file("res://scenes/start_screen.tscn")
-
-
-func _style_panel(panel: PanelContainer, bg_color: Color) -> void:
-	var style = StyleBoxFlat.new()
-	style.bg_color = bg_color
-	style.border_color = bg_color.lightened(0.3)
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(8)
-	panel.add_theme_stylebox_override("panel", style)
-
-
-func _style_button(button: Button) -> void:
-	var normal_style = StyleBoxFlat.new()
-	normal_style.bg_color = Color(0.25, 0.3, 0.4)
-	normal_style.border_color = Color(0.5, 0.5, 0.6)
-	normal_style.set_border_width_all(2)
-	normal_style.set_corner_radius_all(6)
-	normal_style.set_content_margin_all(8)
-	button.add_theme_stylebox_override("normal", normal_style)
-	
-	var hover_style = normal_style.duplicate()
-	hover_style.bg_color = Color(0.35, 0.4, 0.5)
-	hover_style.border_color = Color(0.7, 0.6, 0.4)
-	button.add_theme_stylebox_override("hover", hover_style)
-	
-	var pressed_style = normal_style.duplicate()
-	pressed_style.bg_color = Color(0.2, 0.25, 0.35)
-	button.add_theme_stylebox_override("pressed", pressed_style)
-	
-	var disabled_style = normal_style.duplicate()
-	disabled_style.bg_color = Color(0.15, 0.15, 0.18)
-	disabled_style.border_color = Color(0.25, 0.25, 0.3)
-	button.add_theme_stylebox_override("disabled", disabled_style)
-	
-	button.add_theme_color_override("font_color", Color(0.9, 0.85, 0.7))
-	button.add_theme_color_override("font_hover_color", Color(1, 0.95, 0.8))
-	button.add_theme_color_override("font_disabled_color", Color(0.4, 0.4, 0.45))
 
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed:
 		if event.keycode == KEY_ESCAPE:
 			_on_back_pressed()
-		elif event.keycode == KEY_G:
-			# Debug: Add gold
-			player_gold += 100
-			_update_gold_display()
-			print("[Shop] DEBUG: Added 100 gold")
+
+
+## --- Styling ---
+
+func _apply_styling() -> void:
+	var btn_style = StyleBoxFlat.new()
+	btn_style.bg_color = Color(0.2, 0.25, 0.35)
+	btn_style.border_color = Color(0.5, 0.45, 0.3)
+	btn_style.set_border_width_all(2)
+	btn_style.set_corner_radius_all(6)
+	btn_style.set_content_margin_all(10)
+	
+	var disabled_style = btn_style.duplicate()
+	disabled_style.bg_color = Color(0.15, 0.15, 0.18)
+	disabled_style.border_color = Color(0.3, 0.3, 0.3)
+	
+	if back_button:
+		back_button.add_theme_stylebox_override("normal", btn_style)
+	
+	if buy_button:
+		buy_button.add_theme_stylebox_override("normal", btn_style)
+		buy_button.add_theme_stylebox_override("disabled", disabled_style)
+
+
+func _get_scale_factor() -> float:
+	var viewport_size = DisplayServer.window_get_size()
+	return clampf(viewport_size.y / REFERENCE_HEIGHT, 1.0, 3.0)
+
+
+func _on_viewport_size_changed() -> void:
+	_apply_responsive_fonts()
+
+
+func _apply_responsive_fonts() -> void:
+	var s = _get_scale_factor()
+	if title_label:
+		title_label.add_theme_font_size_override("font_size", int(36 * s))
+	if gold_label:
+		gold_label.add_theme_font_size_override("font_size", int(24 * s))

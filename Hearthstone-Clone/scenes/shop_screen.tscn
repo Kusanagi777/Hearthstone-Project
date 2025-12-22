@@ -1,6 +1,6 @@
-[gd_scene load_steps=2 format=3 uid="uid://shop_screen_scene"]
+[gd_scene load_steps=2 format=3 uid="uid://cf8ot082m6o3b"]
 
-[ext_resource type="Script" uid="uid://shop_screen_script" path="res://scripts/shop_screen.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://dl625tf8tdmk3" path="res://scripts/shop_screen.gd" id="1_script"]
 
 [node name="ShopScreen" type="Control"]
 layout_mode = 3
