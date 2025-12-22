@@ -1,0 +1,383 @@
+extends Control
+
+## Emitted when the schedule is finalized
+signal schedule_confirmed(schedule: Array)
+
+## Maximum number of activities allowed in the schedule
+const MAX_SLOTS: int = 5
+const REFERENCE_HEIGHT: float = 720.0
+
+## Available Activity Types
+var activities: Dictionary = {
+	"duel": {
+		"id": "duel",
+		"name": "Duel",
+		"description": "Fight a standard opponent to earn XP and Card Packs.",
+		"icon": "⚔️",
+		"color": Color(0.9, 0.3, 0.3) # Red
+	},
+	"champion": {
+		"id": "champion",
+		"name": "Champion",
+		"description": "Challenge an Elite opponent. High risk, high reward.",
+		"icon": "🏆",
+		"color": Color(1.0, 0.8, 0.2) # Gold
+	},
+	"side_job": {
+		"id": "side_job",
+		"name": "Side Job",
+		"description": "Work a shift to earn Gold for the shop.",
+		"icon": "💰",
+		"color": Color(0.4, 0.8, 0.4) # Green
+	},
+	"shop": {
+		"id": "shop",
+		"name": "Shop",
+		"description": "Visit the merchant to buy cards and upgrades.",
+		"icon": "🛒",
+		"color": Color(0.3, 0.6, 0.9) # Blue
+	}
+}
+
+## Current Schedule (Array of activity IDs)
+var current_schedule: Array[String] = []
+
+## UI References
+var title_label: Label
+var slots_container: HBoxContainer
+var activities_container: HBoxContainer
+var description_label: RichTextLabel
+var confirm_button: Button
+var back_button: Button
+
+## Slot UI elements (to update visuals dynamically)
+var slot_panels: Array[PanelContainer] = []
+
+func _ready() -> void:
+	_setup_ui()
+	_apply_styling()
+	_update_slots_visuals()
+	
+	# Connect to viewport resize for responsive UI
+	get_viewport().size_changed.connect(_on_viewport_size_changed)
+
+## --- UI Construction (Code-Driven) ---
+
+func _setup_ui() -> void:
+	# 1. Background
+	var bg = ColorRect.new()
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.color = Color(0.08, 0.1, 0.14) # Dark background matching other scenes
+	add_child(bg)
+
+	# 2. Main Layout
+	var main_vbox = VBoxContainer.new()
+	main_vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
+	main_vbox.add_theme_constant_override("separation", 20)
+	
+	# Margins
+	var margin = MarginContainer.new()
+	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 40)
+	margin.add_theme_constant_override("margin_right", 40)
+	margin.add_theme_constant_override("margin_top", 30)
+	margin.add_theme_constant_override("margin_bottom", 30)
+	add_child(margin)
+	margin.add_child(main_vbox)
+
+	# 3. Title
+	title_label = Label.new()
+	title_label.text = "Plan Your Week (%d/%d)" % [current_schedule.size(), MAX_SLOTS]
+	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title_label.add_theme_font_size_override("font_size", 32)
+	title_label.add_theme_color_override("font_color", Color(0.9, 0.85, 0.7))
+	main_vbox.add_child(title_label)
+	
+	main_vbox.add_child(HSeparator.new())
+
+	# 4. Schedule Slots Display (The 5 empty/filled boxes)
+	var slots_label = Label.new()
+	slots_label.text = "Your Schedule"
+	slots_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	slots_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.7))
+	main_vbox.add_child(slots_label)
+
+	slots_container = HBoxContainer.new()
+	slots_container.alignment = BoxContainer.ALIGNMENT_CENTER
+	slots_container.add_theme_constant_override("separation", 15)
+	main_vbox.add_child(slots_container)
+	
+	# Create the 5 slot placeholders
+	for i in range(MAX_SLOTS):
+		var slot = _create_slot_ui(i)
+		slots_container.add_child(slot)
+		slot_panels.append(slot)
+
+	# Spacer
+	var spacer1 = Control.new()
+	spacer1.custom_minimum_size = Vector2(0, 20)
+	main_vbox.add_child(spacer1)
+
+	# 5. Activity Selection Buttons
+	var activities_label = Label.new()
+	activities_label.text = "Available Activities"
+	activities_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	activities_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.7))
+	main_vbox.add_child(activities_label)
+
+	activities_container = HBoxContainer.new()
+	activities_container.alignment = BoxContainer.ALIGNMENT_CENTER
+	activities_container.add_theme_constant_override("separation", 20)
+	main_vbox.add_child(activities_container)
+
+	# Create buttons for Duel, Champion, Side Job, Shop
+	for id in ["duel", "champion", "side_job", "shop"]:
+		var btn = _create_activity_button(activities[id])
+		activities_container.add_child(btn)
+
+	# 6. Description / Info Panel
+	var desc_panel = PanelContainer.new()
+	desc_panel.custom_minimum_size = Vector2(600, 80)
+	desc_panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	
+	var desc_style = StyleBoxFlat.new()
+	desc_style.bg_color = Color(0.12, 0.12, 0.15, 0.8)
+	desc_style.border_color = Color(0.4, 0.35, 0.3)
+	desc_style.set_border_width_all(1)
+	desc_style.set_corner_radius_all(8)
+	desc_panel.add_theme_stylebox_override("panel", desc_style)
+	
+	var desc_margin = MarginContainer.new()
+	desc_margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	desc_margin.add_theme_constant_override("margin_left", 15)
+	desc_margin.add_theme_constant_override("margin_right", 15)
+	desc_margin.add_theme_constant_override("margin_top", 10)
+	desc_margin.add_theme_constant_override("margin_bottom", 10)
+	
+	description_label = RichTextLabel.new()
+	description_label.bbcode_enabled = true
+	description_label.fit_content = true
+	description_label.text = "[center]Select an activity to add it to your schedule.[/center]"
+	
+	desc_margin.add_child(description_label)
+	desc_panel.add_child(desc_margin)
+	main_vbox.add_child(desc_panel)
+
+	# Spacer
+	var spacer2 = Control.new()
+	spacer2.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	main_vbox.add_child(spacer2)
+
+	# 7. Action Buttons (Back / Confirm)
+	var btn_hbox = HBoxContainer.new()
+	btn_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	btn_hbox.add_theme_constant_override("separation", 40)
+	main_vbox.add_child(btn_hbox)
+
+	back_button = Button.new()
+	back_button.text = "Back"
+	back_button.custom_minimum_size = Vector2(150, 50)
+	back_button.pressed.connect(_on_back_pressed)
+	btn_hbox.add_child(back_button)
+
+	confirm_button = Button.new()
+	confirm_button.text = "Start Week"
+	confirm_button.custom_minimum_size = Vector2(200, 50)
+	confirm_button.disabled = true # Disabled until schedule is full
+	confirm_button.pressed.connect(_on_confirm_pressed)
+	btn_hbox.add_child(confirm_button)
+
+	_apply_responsive_fonts()
+
+## Helper to create the visual slot boxes
+func _create_slot_ui(index: int) -> PanelContainer:
+	var panel = PanelContainer.new()
+	panel.custom_minimum_size = Vector2(120, 150)
+	
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.15, 0.15, 0.18)
+	style.border_color = Color(0.3, 0.3, 0.35)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(8)
+	panel.add_theme_stylebox_override("panel", style)
+	
+	# Internal layout
+	var vbox = VBoxContainer.new()
+	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	panel.add_child(vbox)
+	
+	# Day Label (Day 1, Day 2, etc.)
+	var day_lbl = Label.new()
+	day_lbl.text = "Day %d" % (index + 1)
+	day_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	day_lbl.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
+	vbox.add_child(day_lbl)
+	
+	# Icon Label (Empty initially)
+	var icon_lbl = Label.new()
+	icon_lbl.name = "Icon" # Named for easy access
+	icon_lbl.text = "+"
+	icon_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	icon_lbl.add_theme_font_size_override("font_size", 32)
+	icon_lbl.add_theme_color_override("font_color", Color(0.3, 0.3, 0.35))
+	vbox.add_child(icon_lbl)
+	
+	# Name Label
+	var name_lbl = Label.new()
+	name_lbl.name = "Name"
+	name_lbl.text = "Empty"
+	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_lbl.add_theme_color_override("font_color", Color(0.4, 0.4, 0.45))
+	vbox.add_child(name_lbl)
+	
+	# Click to remove logic
+	panel.gui_input.connect(func(event): 
+		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+			_remove_activity_at(index)
+	)
+	
+	return panel
+
+## Helper to create the activity selection buttons
+func _create_activity_button(data: Dictionary) -> Button:
+	var btn = Button.new()
+	btn.custom_minimum_size = Vector2(180, 100)
+	
+	# Custom style
+	var style = StyleBoxFlat.new()
+	style.bg_color = data["color"].darkened(0.7)
+	style.border_color = data["color"]
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(8)
+	btn.add_theme_stylebox_override("normal", style)
+	
+	var hover = style.duplicate()
+	hover.bg_color = data["color"].darkened(0.5)
+	btn.add_theme_stylebox_override("hover", hover)
+	
+	# Internal layout for Button
+	var vbox = VBoxContainer.new()
+	vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
+	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE # Let button handle input
+	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	btn.add_child(vbox)
+	
+	var icon = Label.new()
+	icon.text = data["icon"]
+	icon.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	icon.add_theme_font_size_override("font_size", 28)
+	vbox.add_child(icon)
+	
+	var lbl = Label.new()
+	lbl.text = data["name"]
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(lbl)
+	
+	# Signals
+	btn.pressed.connect(func(): _add_activity(data["id"]))
+	btn.mouse_entered.connect(func(): _show_description(data["description"]))
+	btn.mouse_exited.connect(func(): _show_description("Select an activity to add it to your schedule."))
+	
+	return btn
+
+## --- Logic ---
+
+func _add_activity(activity_id: String) -> void:
+	if current_schedule.size() >= MAX_SLOTS:
+		# Flash anim or sound could go here
+		return
+		
+	current_schedule.append(activity_id)
+	_update_slots_visuals()
+	_update_state()
+
+func _remove_activity_at(index: int) -> void:
+	if index < current_schedule.size():
+		current_schedule.remove_at(index)
+		_update_slots_visuals()
+		_update_state()
+
+func _update_slots_visuals() -> void:
+	for i in range(MAX_SLOTS):
+		var panel = slot_panels[i]
+		var icon_lbl = panel.get_node("VBoxContainer/Icon")
+		var name_lbl = panel.get_node("VBoxContainer/Name")
+		var style = panel.get_theme_stylebox("panel") as StyleBoxFlat
+		
+		if i < current_schedule.size():
+			# Slot is filled
+			var act_id = current_schedule[i]
+			var data = activities[act_id]
+			
+			icon_lbl.text = data["icon"]
+			icon_lbl.add_theme_color_override("font_color", Color.WHITE)
+			
+			name_lbl.text = data["name"]
+			name_lbl.add_theme_color_override("font_color", data["color"])
+			
+			style.border_color = data["color"]
+			style.bg_color = data["color"].darkened(0.8)
+		else:
+			# Slot is empty
+			icon_lbl.text = "+"
+			icon_lbl.add_theme_color_override("font_color", Color(0.3, 0.3, 0.35))
+			
+			name_lbl.text = "Empty"
+			name_lbl.add_theme_color_override("font_color", Color(0.4, 0.4, 0.45))
+			
+			style.border_color = Color(0.3, 0.3, 0.35)
+			style.bg_color = Color(0.15, 0.15, 0.18)
+
+func _update_state() -> void:
+	# Update Title
+	title_label.text = "Plan Your Week (%d/%d)" % [current_schedule.size(), MAX_SLOTS]
+	
+	# Update Confirm Button
+	confirm_button.disabled = (current_schedule.size() != MAX_SLOTS)
+	
+	if not confirm_button.disabled:
+		confirm_button.text = "Start Week!"
+	else:
+		confirm_button.text = "Fill Schedule..."
+
+func _show_description(text: String) -> void:
+	description_label.text = "[center]%s[/center]" % text
+
+func _on_back_pressed() -> void:
+	# Go back to deck selection
+	get_tree().change_scene_to_file("res://scenes/deck_selection.tscn")
+
+func _on_confirm_pressed() -> void:
+	print("[ScheduleBuilder] Schedule confirmed: ", current_schedule)
+	
+	# Store schedule in GameManager
+	GameManager.set_meta("weekly_schedule", current_schedule)
+	
+	# Proceed to Main Game
+	get_tree().change_scene_to_file("res://scenes/main_game.tscn")
+
+## --- Styling & Responsiveness ---
+
+func _apply_styling() -> void:
+	# Reuse basic button styling logic
+	var btn_style = StyleBoxFlat.new()
+	btn_style.bg_color = Color(0.2, 0.25, 0.35)
+	btn_style.border_color = Color(0.5, 0.45, 0.3)
+	btn_style.set_border_width_all(2)
+	btn_style.set_corner_radius_all(6)
+	btn_style.set_content_margin_all(10)
+	
+	if back_button: back_button.add_theme_stylebox_override("normal", btn_style)
+	if confirm_button: confirm_button.add_theme_stylebox_override("normal", btn_style)
+
+func get_scale_factor() -> float:
+	var viewport_size = DisplayServer.window_get_size()
+	return clampf(viewport_size.y / REFERENCE_HEIGHT, 1.0, 3.0)
+
+func _on_viewport_size_changed() -> void:
+	_apply_responsive_fonts()
+
+func _apply_responsive_fonts() -> void:
+	var s = get_scale_factor()
+	title_label.add_theme_font_size_override("font_size", int(32 * s))
+	# Update other font sizes if necessary

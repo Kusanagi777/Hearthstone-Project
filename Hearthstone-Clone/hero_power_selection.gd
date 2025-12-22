@@ -236,4 +236,4 @@ func _on_confirm_pressed() -> void:
 	GameManager.set_meta("selected_hero_power", chosen_power)
 	
 	# Start Game
-	get_tree().change_scene_to_file("res://scenes/main_game.tscn")
+	get_tree().change_scene_to_file("res://scenes/schedule_builder.tscn")
