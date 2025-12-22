@@ -1,6 +1,6 @@
-[gd_scene load_steps=2 format=3 uid="uid://c5m8k2r4t7l1p"]
+[gd_scene load_steps=2 format=3 uid="uid://cwsf7je13hnqj"]
 
-[ext_resource type="Script" path="res://schedule_builder.gd" id="1_schedule"]
+[ext_resource type="Script" uid="uid://camwcra26e5pr" path="res://schedule_builder.gd" id="1_schedule"]
 
 [node name="ScheduleBuilder" type="Control"]
 layout_mode = 3

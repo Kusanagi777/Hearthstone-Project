@@ -41,6 +41,8 @@ var activities: Dictionary = {
 
 ## Current Schedule (Array of activity IDs)
 var current_schedule: Array[String] = []
+var slot_icon_labels: Array[Label] = []
+var slot_name_labels: Array[Label] = []
 
 ## UI References
 var title_label: Label
@@ -109,9 +111,12 @@ func _setup_ui() -> void:
 	
 	# Create the 5 slot placeholders
 	for i in range(MAX_SLOTS):
-		var slot = _create_slot_ui(i)
-		slots_container.add_child(slot)
-		slot_panels.append(slot)
+		var slot_data = _create_slot_ui(i)
+		var slot_panel = slot_data["panel"]
+		slots_container.add_child(slot_panel)
+		slot_panels.append(slot_panel)
+		slot_icon_labels.append(slot_data["icon"])
+		slot_name_labels.append(slot_data["name"])
 
 	# Spacer
 	var spacer1 = Control.new()
@@ -190,7 +195,7 @@ func _setup_ui() -> void:
 	_apply_responsive_fonts()
 
 ## Helper to create the visual slot boxes
-func _create_slot_ui(index: int) -> PanelContainer:
+func _create_slot_ui(index: int) -> Dictionary:
 	var panel = PanelContainer.new()
 	panel.custom_minimum_size = Vector2(120, 150)
 	
@@ -236,7 +241,7 @@ func _create_slot_ui(index: int) -> PanelContainer:
 			_remove_activity_at(index)
 	)
 	
-	return panel
+	return {"panel": panel, "icon": icon_lbl, "name": name_lbl}
 
 ## Helper to create the activity selection buttons
 func _create_activity_button(data: Dictionary) -> Button:
@@ -300,9 +305,9 @@ func _remove_activity_at(index: int) -> void:
 func _update_slots_visuals() -> void:
 	for i in range(MAX_SLOTS):
 		var panel = slot_panels[i]
-		var icon_lbl = panel.get_node("VBoxContainer/Icon")
-		var name_lbl = panel.get_node("VBoxContainer/Name")
-		var style = panel.get_theme_stylebox("panel") as StyleBoxFlat
+		var icon_lbl = slot_icon_labels[i]
+		var name_lbl = slot_name_labels[i]
+		var style = panel.get_theme_stylebox("panel").duplicate() as StyleBoxFlat
 		
 		if i < current_schedule.size():
 			# Slot is filled
