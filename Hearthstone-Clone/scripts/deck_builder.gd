@@ -96,55 +96,33 @@ func _load_all_cards() -> void:
 				var card_data := load(card_path) as CardData
 				if card_data:
 					var card_id := card_data.id if not card_data.id.is_empty() else card_data.card_name.to_lower()
+					
+					# Store in lookup dictionary
 					_all_cards[card_id] = card_data
-					_all_cards[card_data.card_name.to_lower()] = card_data
-					# Track unique cards
+					
+					# Add to unique list if not seen
 					if not seen_ids.has(card_id):
 						seen_ids[card_id] = true
 						_unique_cards.append(card_data)
 			file_name = dir.get_next()
 		dir.list_dir_end()
-	else:
-		push_error("[DeckBuilder] Could not access cards path: %s" % CARDS_PATH)
 	
 	# Sort unique cards by cost then name
-	_unique_cards.sort_custom(func(a, b): 
+	_unique_cards.sort_custom(func(a: CardData, b: CardData) -> bool:
 		if a.cost != b.cost:
 			return a.cost < b.cost
 		return a.card_name < b.card_name
 	)
-
-
-func get_scale_factor() -> float:
-	var viewport_size := DisplayServer.window_get_size()
-	var height_scale := viewport_size.y / REFERENCE_HEIGHT
-	return clampf(height_scale, 1.0, 3.0)
-
-
-func _on_viewport_size_changed() -> void:
-	_apply_responsive_fonts()
+	
+	print("[DeckBuilder] Loaded %d unique cards" % _unique_cards.size())
 
 
 func _setup_ui() -> void:
-	# Background
-	var bg := ColorRect.new()
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.color = Color(0.06, 0.08, 0.12)
-	add_child(bg)
-	
-	# Main margin container
-	var margin := MarginContainer.new()
-	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left", 30)
-	margin.add_theme_constant_override("margin_right", 30)
-	margin.add_theme_constant_override("margin_top", 20)
-	margin.add_theme_constant_override("margin_bottom", 20)
-	add_child(margin)
-	
-	# Main vertical layout
+	# Main layout
 	var main_vbox := VBoxContainer.new()
-	main_vbox.add_theme_constant_override("separation", 12)
-	margin.add_child(main_vbox)
+	main_vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
+	main_vbox.add_theme_constant_override("separation", 15)
+	add_child(main_vbox)
 	
 	# === HEADER SECTION ===
 	var header := HBoxContainer.new()
@@ -154,7 +132,7 @@ func _setup_ui() -> void:
 	# Back button
 	back_button = Button.new()
 	back_button.text = "← Back"
-	back_button.custom_minimum_size = Vector2(90, 36)
+	back_button.custom_minimum_size = Vector2(100, 40)
 	back_button.pressed.connect(_on_back_pressed)
 	header.add_child(back_button)
 	
@@ -169,13 +147,14 @@ func _setup_ui() -> void:
 	
 	# Deck count
 	deck_count_label = Label.new()
-	deck_count_label.custom_minimum_size = Vector2(90, 0)
+	deck_count_label.text = "0 cards"
+	deck_count_label.custom_minimum_size = Vector2(100, 0)
 	deck_count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	deck_count_label.add_theme_font_size_override("font_size", 16)
-	deck_count_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.75))
+	deck_count_label.add_theme_font_size_override("font_size", 18)
+	deck_count_label.add_theme_color_override("font_color", Color(0.7, 0.75, 0.8))
 	header.add_child(deck_count_label)
 	
-	# Class indicator
+	# Class info
 	class_label = Label.new()
 	class_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	class_label.add_theme_font_size_override("font_size", 14)
@@ -268,7 +247,7 @@ func _setup_collection_panel(parent: Control) -> void:
 	collection_panel.custom_minimum_size.x = 250
 	parent.add_child(collection_panel)
 	
-	# Drop highlight overlay (initially hidden)
+	# Drop highlight overlay (initially hidden) - RED tint for removal
 	_collection_drop_highlight = ColorRect.new()
 	_collection_drop_highlight.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_collection_drop_highlight.color = Color(0.8, 0.3, 0.2, 0.15)
@@ -433,13 +412,23 @@ func _sort_by_mana_cost(a: String, b: String) -> bool:
 
 
 func _create_deck_card_display(card_data: CardData, count: int) -> Control:
-	var container := VBoxContainer.new()
-	container.add_theme_constant_override("separation", 4)
-	container.mouse_filter = Control.MOUSE_FILTER_STOP
+	# Use a PanelContainer as the wrapper - it auto-sizes to content
+	var wrapper := PanelContainer.new()
+	wrapper.mouse_filter = Control.MOUSE_FILTER_IGNORE  # Let overlay handle clicks
+	
+	# Make the panel invisible
+	var transparent_style := StyleBoxEmpty.new()
+	wrapper.add_theme_stylebox_override("panel", transparent_style)
 	
 	# Store card data for dragging
-	container.set_meta("card_data", card_data)
-	container.set_meta("source", "deck")
+	wrapper.set_meta("card_data", card_data)
+	wrapper.set_meta("source", "deck")
+	
+	# Inner container for layout
+	var container := VBoxContainer.new()
+	container.add_theme_constant_override("separation", 4)
+	container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	wrapper.add_child(container)
 	
 	# Card UI instance
 	if card_ui_scene:
@@ -451,8 +440,6 @@ func _create_deck_card_display(card_data: CardData, count: int) -> Control:
 		card_instance.scale = Vector2(CARD_SCALE, CARD_SCALE)
 		card_instance.custom_minimum_size = Vector2(120, 170) * CARD_SCALE
 		card_instance.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		
-		# Make all children ignore mouse so the container catches it
 		_set_children_mouse_filter(card_instance, Control.MOUSE_FILTER_IGNORE)
 	
 	# Count label
@@ -469,17 +456,48 @@ func _create_deck_card_display(card_data: CardData, count: int) -> Control:
 	
 	container.add_child(count_label)
 	
-	# Connect drag signals
-	container.gui_input.connect(_on_deck_card_gui_input.bind(container, card_data))
+	# Drag hint for deck cards
+	var drag_hint := Label.new()
+	drag_hint.text = "⟵ drag to remove"
+	drag_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	drag_hint.add_theme_font_size_override("font_size", 10)
+	drag_hint.add_theme_color_override("font_color", Color(0.5, 0.4, 0.4, 0.7))
+	drag_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	container.add_child(drag_hint)
 	
-	return container
+	# INVISIBLE CLICK OVERLAY - sits on top and catches all mouse events
+	var click_overlay := ColorRect.new()
+	click_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	click_overlay.color = Color(0, 0, 0, 0)  # Fully transparent
+	click_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	click_overlay.z_index = 50  # Above everything in this container
+	wrapper.add_child(click_overlay)
+	
+	# Connect signals to the overlay (catches all clicks)
+	click_overlay.gui_input.connect(_on_deck_card_gui_input.bind(wrapper, card_data))
+	click_overlay.mouse_entered.connect(_on_deck_card_hover.bind(wrapper))
+	click_overlay.mouse_exited.connect(_on_deck_card_exit.bind(wrapper))
+	
+	return wrapper
 
 
+## Recursive helper to set mouse filter on all children
 func _set_children_mouse_filter(node: Control, filter: Control.MouseFilter) -> void:
 	for child in node.get_children():
 		if child is Control:
 			child.mouse_filter = filter
 			_set_children_mouse_filter(child, filter)
+
+
+func _on_deck_card_hover(container: Control) -> void:
+	if _is_dragging:
+		return
+	# Slight highlight effect
+	container.modulate = Color(1.1, 1.1, 1.1)
+
+
+func _on_deck_card_exit(container: Control) -> void:
+	container.modulate = Color(1, 1, 1)
 
 
 func _create_collection_entry(card_data: CardData, copies_in_deck: int) -> Control:
@@ -577,6 +595,7 @@ func _on_deck_card_gui_input(event: InputEvent, container: Control, card_data: C
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			if event.pressed:
+				# Start dragging from deck
 				_start_drag(card_data, "deck", container.get_global_rect().position)
 			elif _is_dragging:
 				_end_drag()
@@ -696,6 +715,10 @@ func _end_drag() -> void:
 	elif _drag_source == "deck" and collection_rect.has_point(mouse_pos):
 		# Remove card from deck
 		_remove_card_from_deck(_drag_card_data)
+		print("[DeckBuilder] Dropped card on collection - removing from deck")
+	elif _drag_source == "deck":
+		# Dropped outside valid zone - just cancel (card stays in deck)
+		print("[DeckBuilder] Drag cancelled - card stays in deck")
 	
 	_drag_card_data = null
 	_drag_source = ""
@@ -805,14 +828,14 @@ func _on_collection_entry_hover(entry: Control, card_data: CardData) -> void:
 	var tooltip_size := Vector2(130, 185)  # Approximate card size
 	
 	# Position to the left of the entry
-	var tooltip_x := entry_rect.position.x - tooltip_size.x - 15
-	var tooltip_y := entry_rect.position.y - 30
+	var tooltip_x := entry_rect.position.x - tooltip_size.x - 20
+	var tooltip_y := entry_rect.position.y - (tooltip_size.y - entry_rect.size.y) / 2
 	
-	# Keep on screen
-	tooltip_y = clampf(tooltip_y, 10, get_viewport_rect().size.y - tooltip_size.y - 10)
+	# Clamp to screen bounds
+	var viewport_size := get_viewport_rect().size
+	tooltip_y = clamp(tooltip_y, 10, viewport_size.y - tooltip_size.y - 10)
 	if tooltip_x < 10:
-		# If not enough space on left, show on right
-		tooltip_x = entry_rect.position.x + entry_rect.size.x + 15
+		tooltip_x = entry_rect.end.x + 10  # Flip to right side
 	
 	tooltip_popup.global_position = Vector2(tooltip_x, tooltip_y)
 	tooltip_popup.visible = true
@@ -822,63 +845,54 @@ func _on_collection_entry_exit() -> void:
 	tooltip_popup.visible = false
 
 
-# ============= STYLING =============
+func _on_back_pressed() -> void:
+	# Return to previous screen
+	if GameManager.has_meta("deck_builder_return_scene"):
+		var return_scene: String = GameManager.get_meta("deck_builder_return_scene")
+		get_tree().change_scene_to_file(return_scene)
+	else:
+		# Default to hero power selection
+		get_tree().change_scene_to_file("res://scenes/hero_power_selection.tscn")
+
+
+func _on_viewport_size_changed() -> void:
+	# Update scale based on viewport
+	var viewport_height := get_viewport_rect().size.y
+	var scale_factor := viewport_height / REFERENCE_HEIGHT
+	# Could adjust UI elements here if needed
+
 
 func _apply_styling() -> void:
-	_style_button(back_button)
-	_style_panel(deck_panel, Color(0.1, 0.12, 0.16))
-	_style_panel(collection_panel, Color(0.08, 0.1, 0.14))
-	_apply_responsive_fonts()
-
-
-func _apply_responsive_fonts() -> void:
-	var scale_factor := get_scale_factor()
+	# Style the deck panel
+	var deck_style := StyleBoxFlat.new()
+	deck_style.bg_color = Color(0.12, 0.14, 0.2)
+	deck_style.border_color = Color(0.35, 0.3, 0.22)
+	deck_style.set_border_width_all(2)
+	deck_style.set_corner_radius_all(8)
+	deck_style.set_content_margin_all(15)
+	deck_panel.add_theme_stylebox_override("panel", deck_style)
 	
-	if title_label:
-		title_label.add_theme_font_size_override("font_size", int(28 * scale_factor))
+	# Style the collection panel
+	var coll_style := StyleBoxFlat.new()
+	coll_style.bg_color = Color(0.1, 0.13, 0.18)
+	coll_style.border_color = Color(0.25, 0.35, 0.3)
+	coll_style.set_border_width_all(2)
+	coll_style.set_corner_radius_all(8)
+	coll_style.set_content_margin_all(15)
+	collection_panel.add_theme_stylebox_override("panel", coll_style)
 	
-	if deck_count_label:
-		deck_count_label.add_theme_font_size_override("font_size", int(16 * scale_factor))
+	# Style the back button
+	var btn_style := StyleBoxFlat.new()
+	btn_style.bg_color = Color(0.2, 0.22, 0.28)
+	btn_style.border_color = Color(0.4, 0.35, 0.25)
+	btn_style.set_border_width_all(2)
+	btn_style.set_corner_radius_all(6)
+	back_button.add_theme_stylebox_override("normal", btn_style)
 	
-	if class_label:
-		class_label.add_theme_font_size_override("font_size", int(14 * scale_factor))
+	var btn_hover := btn_style.duplicate()
+	btn_hover.bg_color = Color(0.25, 0.28, 0.35)
+	back_button.add_theme_stylebox_override("hover", btn_hover)
 	
-	if back_button:
-		back_button.add_theme_font_size_override("font_size", int(14 * scale_factor))
-
-
-func _style_button(button: Button) -> void:
-	var normal_style := StyleBoxFlat.new()
-	normal_style.bg_color = Color(0.2, 0.25, 0.35)
-	normal_style.border_color = Color(0.5, 0.45, 0.3)
-	normal_style.set_border_width_all(2)
-	normal_style.set_corner_radius_all(8)
-	normal_style.set_content_margin_all(8)
-	button.add_theme_stylebox_override("normal", normal_style)
-	
-	var hover_style := normal_style.duplicate()
-	hover_style.bg_color = Color(0.3, 0.35, 0.45)
-	hover_style.border_color = Color(0.7, 0.6, 0.4)
-	button.add_theme_stylebox_override("hover", hover_style)
-	
-	var pressed_style := normal_style.duplicate()
-	pressed_style.bg_color = Color(0.15, 0.2, 0.3)
-	button.add_theme_stylebox_override("pressed", pressed_style)
-	
-	button.add_theme_color_override("font_color", Color(0.9, 0.85, 0.7))
-	button.add_theme_color_override("font_hover_color", Color(1, 0.95, 0.8))
-
-
-func _style_panel(panel: PanelContainer, bg_color: Color) -> void:
-	var style := StyleBoxFlat.new()
-	style.bg_color = bg_color
-	style.border_color = Color(0.3, 0.28, 0.22)
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(10)
-	style.set_content_margin_all(15)
-	panel.add_theme_stylebox_override("panel", style)
-
-
-func _on_back_pressed() -> void:
-	var return_scene: String = GameManager.get_meta("deck_builder_return_scene") if GameManager.has_meta("deck_builder_return_scene") else "res://scenes/start_screen.tscn"
-	get_tree().change_scene_to_file(return_scene)
+	var btn_pressed := btn_style.duplicate()
+	btn_pressed.bg_color = Color(0.15, 0.18, 0.22)
+	back_button.add_theme_stylebox_override("pressed", btn_pressed)
