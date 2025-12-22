@@ -1,6 +1,8 @@
 # res://scripts/main_game.gd
 extends Control
 
+const HERO_POWER_SCENE = preload("res://scenes/hero_power_button.tscn")
+
 ## Player controllers
 @export var player_one: player_controller
 @export var player_two: player_controller
@@ -63,6 +65,7 @@ func _ready() -> void:
 	_setup_lanes()
 	_apply_styling()
 	_apply_responsive_fonts()
+	_setup_hero_power()
 	
 	if game_over_panel:
 		game_over_panel.visible = false
@@ -75,6 +78,26 @@ func _ready() -> void:
 	await get_tree().create_timer(0.5).timeout
 	_setup_test_game()
 
+func _setup_hero_power() -> void:
+	# Only set up for Player 1 (us) for now
+	if not player_hero_area:
+		return
+		
+	if GameManager.has_meta("selected_hero_power"):
+		var power_data = GameManager.get_meta("selected_hero_power")
+		var btn = HERO_POWER_SCENE.instantiate()
+		
+		# Add to the container
+		player_hero_area.add_child(btn)
+		
+		# Attempt to place it in the middle (between portrait and resources)
+		# This assumes player_hero_area has 3 children total (Portrait, Power, Resource)
+		# You might need to adjust the index '1' depending on your specific Scene Tree structure
+		player_hero_area.move_child(btn, 1) 
+		
+		# Initialize logic
+		if btn.has_method("setup"):
+			btn.setup(power_data, 0) # 0 is Player One ID
 
 func _setup_lanes() -> void:
 	# Find player front lanes (in PlayerBoardRow/PlayerBoardArea/PlayerFrontRow/PlayerFrontLanes)

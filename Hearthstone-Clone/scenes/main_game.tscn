@@ -124,22 +124,23 @@ mouse_filter = 2
 theme_override_constants/separation = 8
 
 [node name="LeftStats" type="VBoxContainer" parent="GameArea/BoardSection/EnemyBoardRow"]
-custom_minimum_size = Vector2(80, 0)
+custom_minimum_size = Vector2(120, 0)
 layout_mode = 2
 mouse_filter = 2
-alignment = 1
+theme_override_constants/separation = 89
+alignment = 2
 
 [node name="EnemyManaLabel" type="Label" parent="GameArea/BoardSection/EnemyBoardRow/LeftStats"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.3, 0.5, 1, 1)
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 22
 text = "0 / 0"
 horizontal_alignment = 1
 
 [node name="EnemyDeckLabel" type="Label" parent="GameArea/BoardSection/EnemyBoardRow/LeftStats"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.6, 0.6, 0.65, 1)
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 20
 text = "Deck: 30"
 horizontal_alignment = 1
 
@@ -233,22 +234,23 @@ layout_mode = 2
 mouse_filter = 2
 
 [node name="RightStats" type="VBoxContainer" parent="GameArea/BoardSection/EnemyBoardRow"]
-custom_minimum_size = Vector2(80, 0)
+custom_minimum_size = Vector2(120, 0)
 layout_mode = 2
 mouse_filter = 2
-alignment = 1
+theme_override_constants/separation = 96
+alignment = 2
 
 [node name="EnemyHealthLabel" type="Label" parent="GameArea/BoardSection/EnemyBoardRow/RightStats"]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.3, 0.3, 1)
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 20
 text = "HP: 30"
 horizontal_alignment = 1
 
 [node name="EnemyDiscardLabel" type="Label" parent="GameArea/BoardSection/EnemyBoardRow/RightStats"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.5, 0.5, 0.55, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 17
 text = "Discard: 0"
 horizontal_alignment = 1
 
@@ -265,22 +267,23 @@ mouse_filter = 2
 theme_override_constants/separation = 8
 
 [node name="LeftStats" type="VBoxContainer" parent="GameArea/BoardSection/PlayerBoardRow"]
-custom_minimum_size = Vector2(80, 0)
+custom_minimum_size = Vector2(120, 0)
 layout_mode = 2
 mouse_filter = 2
-alignment = 1
+theme_override_constants/separation = 89
+alignment = 2
 
 [node name="ManaLabel" type="Label" parent="GameArea/BoardSection/PlayerBoardRow/LeftStats"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.3, 0.5, 1, 1)
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 22
 text = "0 / 0"
 horizontal_alignment = 1
 
 [node name="PlayerDeckLabel" type="Label" parent="GameArea/BoardSection/PlayerBoardRow/LeftStats"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.6, 0.6, 0.65, 1)
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 20
 text = "Deck: 30"
 horizontal_alignment = 1
 
@@ -374,29 +377,30 @@ layout_mode = 2
 mouse_filter = 2
 
 [node name="RightStats" type="VBoxContainer" parent="GameArea/BoardSection/PlayerBoardRow"]
-custom_minimum_size = Vector2(80, 0)
+custom_minimum_size = Vector2(120, 0)
 layout_mode = 2
 mouse_filter = 2
+theme_override_constants/separation = 75
 alignment = 1
+
+[node name="TurnButton" type="Button" parent="GameArea/BoardSection/PlayerBoardRow/RightStats"]
+custom_minimum_size = Vector2(70, 30)
+layout_mode = 2
+text = "End Turn"
 
 [node name="PlayerHealthLabel" type="Label" parent="GameArea/BoardSection/PlayerBoardRow/RightStats"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.3, 1, 0.3, 1)
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 20
 text = "HP: 30"
 horizontal_alignment = 1
 
 [node name="PlayerDiscardLabel" type="Label" parent="GameArea/BoardSection/PlayerBoardRow/RightStats"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.5, 0.5, 0.55, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 17
 text = "Discard: 0"
 horizontal_alignment = 1
-
-[node name="TurnButton" type="Button" parent="GameArea/BoardSection/PlayerBoardRow/RightStats"]
-custom_minimum_size = Vector2(70, 30)
-layout_mode = 2
-text = "End Turn"
 
 [node name="PlayerHeroRow" type="HBoxContainer" parent="GameArea"]
 custom_minimum_size = Vector2(0, 100)

@@ -1,0 +1,29 @@
+[gd_scene load_steps=3 format=3 uid="uid://d2k4s5h8j1ma"]
+
+[ext_resource type="Script" path="res://scripts/hero_power_button.gd" id="1_power_btn"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_circular"]
+bg_color = Color(0.18, 0.22, 0.25, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.6, 0.5, 0.3, 1)
+corner_radius_top_left = 40
+corner_radius_top_right = 40
+corner_radius_bottom_right = 40
+corner_radius_bottom_left = 40
+
+[node name="HeroPowerButton" type="Button"]
+custom_minimum_size = Vector2(80, 80)
+offset_right = 80.0
+offset_bottom = 80.0
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleBoxFlat_circular")
+theme_override_styles/hover = SubResource("StyleBoxFlat_circular")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_circular")
+theme_override_styles/disabled = SubResource("StyleBoxFlat_circular")
+text = "Power
+(2)"
+clip_text = true
+script = ExtResource("1_power_btn")

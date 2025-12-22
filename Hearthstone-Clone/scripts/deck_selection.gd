@@ -549,13 +549,14 @@ func _on_select_pressed() -> void:
 	print("[DeckSelection] Selected deck: %s" % selected_deck["name"])
 	print("[DeckSelection] Class: %s" % selected_class["name"])
 	
-	# Store selection in GameManager for the game to use
+	# Store selection in GameManager
 	GameManager.set_meta("selected_class", selected_class)
 	GameManager.set_meta("selected_deck", selected_deck)
 	
-	# Reset game state and start
-	GameManager.reset_game()
-	get_tree().change_scene_to_file("res://scenes/main_game.tscn")
+	# CHANGE: Instead of going to main_game, go to hero_power_selection
+	# Make sure you create the scene file 'hero_power_selection.tscn' 
+	# and attach the new script to the root node!
+	get_tree().change_scene_to_file("res://scenes/hero_power_selection.tscn")
 
 
 func _input(event: InputEvent) -> void:
