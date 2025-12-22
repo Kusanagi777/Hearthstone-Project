@@ -558,7 +558,35 @@ func _on_game_ended(winner_id: int) -> void:
 			else:
 				winner_label.text = "Defeat!"
 				winner_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
+				
+				# Wait 2 seconds, then handle defeat
+				var timer = get_tree().create_timer(2.0)
+				await timer.timeout
+				_handle_defeat()
 
+
+## Handle player defeat - return to week runner or game over
+func _handle_defeat() -> void:
+	# Check if we're in a weekly run
+	if GameManager.has_meta("return_to_week_runner") and GameManager.get_meta("return_to_week_runner"):
+		# Clear the flag
+		GameManager.set_meta("return_to_week_runner", false)
+		
+		# Advance the day even on defeat (the day is spent)
+		var current_day: int = GameManager.get_meta("current_day_index") if GameManager.has_meta("current_day_index") else 0
+		current_day += 1
+		GameManager.set_meta("current_day_index", current_day)
+		
+		print("[MainGame] Defeat! Returning to week runner, advancing to day %d" % (current_day + 1))
+		
+		# Reset game state
+		GameManager.reset_game()
+		
+		get_tree().change_scene_to_file("res://scenes/week_runner.tscn")
+	else:
+		# Not in weekly run - go to start screen
+		GameManager.reset_game()
+		get_tree().change_scene_to_file("res://scenes/start_screen.tscn")
 
 func _on_resource_changed(player_id: int, current: int, max_val: int) -> void:
 	_update_resource_display(player_id, current, max_val)

@@ -14,6 +14,9 @@ const REFERENCE_HEIGHT := 720.0
 const CARDS_PER_ROW := 4
 const CARD_SCALE := 0.7
 
+## Max copies of a card allowed in deck
+const MAX_COPIES := 2
+
 ## All available card resources (for lookup)
 var _all_cards: Dictionary = {}
 
@@ -47,6 +50,17 @@ var tooltip_card_instance: Control
 ## Selected class info
 var selected_class: Dictionary = {}
 
+## Drag and drop state
+var _is_dragging: bool = false
+var _drag_preview: Control = null
+var _drag_card_data: CardData = null
+var _drag_source: String = ""  # "deck" or "collection"
+var _drag_offset: Vector2 = Vector2.ZERO
+
+## Drop zone highlighting
+var _deck_drop_highlight: ColorRect = null
+var _collection_drop_highlight: ColorRect = null
+
 
 func _ready() -> void:
 	# Get selected class and deck from GameManager
@@ -61,6 +75,7 @@ func _ready() -> void:
 	_load_all_cards()
 	_setup_ui()
 	_setup_tooltip()
+	_setup_drag_preview()
 	_populate_deck_grid()
 	_populate_collection_list()
 	_apply_styling()
@@ -171,6 +186,14 @@ func _setup_ui() -> void:
 	class_label.text = "Playing as: %s" % selected_class.get("name", "Unknown")
 	main_vbox.add_child(class_label)
 	
+	# Drag hint
+	var hint_label := Label.new()
+	hint_label.text = "💡 Drag cards between panels to add/remove from deck"
+	hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint_label.add_theme_font_size_override("font_size", 12)
+	hint_label.add_theme_color_override("font_color", Color(0.5, 0.55, 0.6))
+	main_vbox.add_child(hint_label)
+	
 	# === CONTENT SECTION (Two columns) ===
 	var content_hbox := HBoxContainer.new()
 	content_hbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -186,10 +209,20 @@ func _setup_ui() -> void:
 
 func _setup_deck_panel(parent: Control) -> void:
 	deck_panel = PanelContainer.new()
+	deck_panel.name = "DeckPanel"
 	deck_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	deck_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	deck_panel.size_flags_stretch_ratio = 2.0  # Takes 2/3 of space
 	parent.add_child(deck_panel)
+	
+	# Drop highlight overlay (initially hidden)
+	_deck_drop_highlight = ColorRect.new()
+	_deck_drop_highlight.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_deck_drop_highlight.color = Color(0.2, 0.8, 0.3, 0.15)
+	_deck_drop_highlight.visible = false
+	_deck_drop_highlight.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_deck_drop_highlight.z_index = 10
+	deck_panel.add_child(_deck_drop_highlight)
 	
 	var deck_vbox := VBoxContainer.new()
 	deck_vbox.add_theme_constant_override("separation", 10)
@@ -228,11 +261,21 @@ func _setup_deck_panel(parent: Control) -> void:
 
 func _setup_collection_panel(parent: Control) -> void:
 	collection_panel = PanelContainer.new()
+	collection_panel.name = "CollectionPanel"
 	collection_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	collection_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	collection_panel.size_flags_stretch_ratio = 1.0  # Takes 1/3 of space
 	collection_panel.custom_minimum_size.x = 250
 	parent.add_child(collection_panel)
+	
+	# Drop highlight overlay (initially hidden)
+	_collection_drop_highlight = ColorRect.new()
+	_collection_drop_highlight.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_collection_drop_highlight.color = Color(0.8, 0.3, 0.2, 0.15)
+	_collection_drop_highlight.visible = false
+	_collection_drop_highlight.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_collection_drop_highlight.z_index = 10
+	collection_panel.add_child(_collection_drop_highlight)
 	
 	var coll_vbox := VBoxContainer.new()
 	coll_vbox.add_theme_constant_override("separation", 10)
@@ -281,6 +324,25 @@ func _setup_tooltip() -> void:
 	tooltip_popup.add_theme_stylebox_override("panel", tooltip_style)
 
 
+func _setup_drag_preview() -> void:
+	# Create the drag preview container (hidden by default)
+	_drag_preview = PanelContainer.new()
+	_drag_preview.visible = false
+	_drag_preview.z_index = 200
+	_drag_preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_drag_preview.modulate = Color(1, 1, 1, 0.85)
+	add_child(_drag_preview)
+	
+	# Style the drag preview
+	var drag_style := StyleBoxFlat.new()
+	drag_style.bg_color = Color(0.15, 0.18, 0.25, 0.95)
+	drag_style.border_color = Color(0.8, 0.7, 0.4)
+	drag_style.set_border_width_all(3)
+	drag_style.set_corner_radius_all(8)
+	drag_style.set_content_margin_all(5)
+	_drag_preview.add_theme_stylebox_override("panel", drag_style)
+
+
 func _populate_deck_grid() -> void:
 	# Clear existing cards
 	for child in deck_grid.get_children():
@@ -292,7 +354,7 @@ func _populate_deck_grid() -> void:
 	# Show empty message if no deck
 	if current_deck.is_empty():
 		var empty_label := Label.new()
-		empty_label.text = "No cards in deck"
+		empty_label.text = "No cards in deck\nDrag cards here to add"
 		empty_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		empty_label.add_theme_font_size_override("font_size", 16)
 		empty_label.add_theme_color_override("font_color", Color(0.5, 0.5, 0.55))
@@ -337,14 +399,13 @@ func _populate_collection_list() -> void:
 		else:
 			deck_counts[lookup_id] = 1
 	
-	# Create entries for cards not in deck (or not at max copies)
+	# Create entries for all cards
 	var has_available := false
 	for card_data in _unique_cards:
 		var card_id := card_data.id if not card_data.id.is_empty() else card_data.card_name.to_lower()
 		var in_deck: int = deck_counts.get(card_id, 0)
 		
-		# For now, show all cards - you can filter based on ownership later
-		# Cards already at 2 copies are shown dimmed
+		# Show all cards - cards at max copies are shown dimmed
 		var card_entry := _create_collection_entry(card_data, in_deck)
 		collection_list.add_child(card_entry)
 		has_available = true
@@ -374,6 +435,11 @@ func _sort_by_mana_cost(a: String, b: String) -> bool:
 func _create_deck_card_display(card_data: CardData, count: int) -> Control:
 	var container := VBoxContainer.new()
 	container.add_theme_constant_override("separation", 4)
+	container.mouse_filter = Control.MOUSE_FILTER_STOP
+	
+	# Store card data for dragging
+	container.set_meta("card_data", card_data)
+	container.set_meta("source", "deck")
 	
 	# Card UI instance
 	if card_ui_scene:
@@ -384,12 +450,17 @@ func _create_deck_card_display(card_data: CardData, count: int) -> Control:
 		card_instance.set_interactable(false)
 		card_instance.scale = Vector2(CARD_SCALE, CARD_SCALE)
 		card_instance.custom_minimum_size = Vector2(120, 170) * CARD_SCALE
+		card_instance.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		
+		# Make all children ignore mouse so the container catches it
+		_set_children_mouse_filter(card_instance, Control.MOUSE_FILTER_IGNORE)
 	
 	# Count label
 	var count_label := Label.new()
 	count_label.text = "×%d" % count
 	count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	count_label.add_theme_font_size_override("font_size", 13)
+	count_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	
 	if count >= 2:
 		count_label.add_theme_color_override("font_color", Color(0.9, 0.8, 0.4))
@@ -398,7 +469,17 @@ func _create_deck_card_display(card_data: CardData, count: int) -> Control:
 	
 	container.add_child(count_label)
 	
+	# Connect drag signals
+	container.gui_input.connect(_on_deck_card_gui_input.bind(container, card_data))
+	
 	return container
+
+
+func _set_children_mouse_filter(node: Control, filter: Control.MouseFilter) -> void:
+	for child in node.get_children():
+		if child is Control:
+			child.mouse_filter = filter
+			_set_children_mouse_filter(child, filter)
 
 
 func _create_collection_entry(card_data: CardData, copies_in_deck: int) -> Control:
@@ -406,16 +487,20 @@ func _create_collection_entry(card_data: CardData, copies_in_deck: int) -> Contr
 	entry.custom_minimum_size = Vector2(0, 36)
 	entry.mouse_filter = Control.MOUSE_FILTER_STOP
 	
-	# Store card data for tooltip
+	# Store card data for tooltip and dragging
 	entry.set_meta("card_data", card_data)
 	entry.set_meta("copies_in_deck", copies_in_deck)
+	entry.set_meta("source", "collection")
 	
 	# Connect hover signals
 	entry.mouse_entered.connect(_on_collection_entry_hover.bind(entry, card_data))
 	entry.mouse_exited.connect(_on_collection_entry_exit)
 	
+	# Connect drag signals
+	entry.gui_input.connect(_on_collection_entry_gui_input.bind(entry, card_data, copies_in_deck))
+	
 	# Style based on copies in deck
-	var is_maxed := copies_in_deck >= 2
+	var is_maxed := copies_in_deck >= MAX_COPIES
 	var style := StyleBoxFlat.new()
 	if is_maxed:
 		style.bg_color = Color(0.12, 0.12, 0.15)
@@ -431,11 +516,13 @@ func _create_collection_entry(card_data: CardData, copies_in_deck: int) -> Contr
 	# Content HBox
 	var hbox := HBoxContainer.new()
 	hbox.add_theme_constant_override("separation", 10)
+	hbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	entry.add_child(hbox)
 	
 	# Mana cost gem
 	var mana_container := PanelContainer.new()
 	mana_container.custom_minimum_size = Vector2(28, 28)
+	mana_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var mana_style := StyleBoxFlat.new()
 	mana_style.bg_color = Color(0.1, 0.3, 0.6)
 	mana_style.set_corner_radius_all(14)
@@ -448,6 +535,7 @@ func _create_collection_entry(card_data: CardData, copies_in_deck: int) -> Contr
 	mana_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	mana_label.add_theme_font_size_override("font_size", 14)
 	mana_label.add_theme_color_override("font_color", Color.WHITE)
+	mana_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	mana_container.add_child(mana_label)
 	
 	# Card name
@@ -455,6 +543,7 @@ func _create_collection_entry(card_data: CardData, copies_in_deck: int) -> Contr
 	name_label.text = card_data.card_name
 	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	name_label.add_theme_font_size_override("font_size", 14)
+	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if is_maxed:
 		name_label.add_theme_color_override("font_color", Color(0.45, 0.45, 0.5))
 	else:
@@ -468,12 +557,237 @@ func _create_collection_entry(card_data: CardData, copies_in_deck: int) -> Contr
 		copies_label.text = "(%d)" % copies_in_deck
 		copies_label.add_theme_font_size_override("font_size", 12)
 		copies_label.add_theme_color_override("font_color", Color(0.6, 0.55, 0.4))
+		copies_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		hbox.add_child(copies_label)
+	
+	# Drag indicator
+	var drag_hint := Label.new()
+	drag_hint.text = "⋮⋮"
+	drag_hint.add_theme_font_size_override("font_size", 14)
+	drag_hint.add_theme_color_override("font_color", Color(0.4, 0.4, 0.45))
+	drag_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hbox.add_child(drag_hint)
 	
 	return entry
 
 
+# ============= DRAG AND DROP LOGIC =============
+
+func _on_deck_card_gui_input(event: InputEvent, container: Control, card_data: CardData) -> void:
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			if event.pressed:
+				_start_drag(card_data, "deck", container.get_global_rect().position)
+			elif _is_dragging:
+				_end_drag()
+
+
+func _on_collection_entry_gui_input(event: InputEvent, entry: Control, card_data: CardData, copies_in_deck: int) -> void:
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			if event.pressed:
+				# Only allow dragging if not maxed
+				if copies_in_deck < MAX_COPIES:
+					_start_drag(card_data, "collection", entry.get_global_rect().position)
+				else:
+					# Visual feedback that card is maxed
+					_flash_entry(entry, Color(0.8, 0.3, 0.2, 0.5))
+			elif _is_dragging:
+				_end_drag()
+
+
+func _flash_entry(entry: Control, flash_color: Color) -> void:
+	var original_modulate := entry.modulate
+	var tween := create_tween()
+	tween.tween_property(entry, "modulate", flash_color, 0.1)
+	tween.tween_property(entry, "modulate", original_modulate, 0.2)
+
+
+func _start_drag(card_data: CardData, source: String, start_pos: Vector2) -> void:
+	_is_dragging = true
+	_drag_card_data = card_data
+	_drag_source = source
+	
+	# Hide tooltip while dragging
+	tooltip_popup.visible = false
+	
+	# Clear and populate drag preview
+	for child in _drag_preview.get_children():
+		child.queue_free()
+	
+	# Create a simple card preview for dragging
+	var drag_content := VBoxContainer.new()
+	drag_content.add_theme_constant_override("separation", 4)
+	_drag_preview.add_child(drag_content)
+	
+	# Mana cost
+	var mana_hbox := HBoxContainer.new()
+	mana_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	drag_content.add_child(mana_hbox)
+	
+	var mana_gem := Label.new()
+	mana_gem.text = "🔷 %d" % card_data.cost
+	mana_gem.add_theme_font_size_override("font_size", 14)
+	mana_gem.add_theme_color_override("font_color", Color(0.3, 0.6, 1.0))
+	mana_hbox.add_child(mana_gem)
+	
+	# Card name
+	var name_label := Label.new()
+	name_label.text = card_data.card_name
+	name_label.add_theme_font_size_override("font_size", 16)
+	name_label.add_theme_color_override("font_color", Color(0.95, 0.9, 0.8))
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	drag_content.add_child(name_label)
+	
+	# Action hint
+	var action_label := Label.new()
+	if source == "collection":
+		action_label.text = "→ Add to deck"
+		action_label.add_theme_color_override("font_color", Color(0.4, 0.8, 0.4))
+	else:
+		action_label.text = "← Remove from deck"
+		action_label.add_theme_color_override("font_color", Color(0.8, 0.4, 0.4))
+	action_label.add_theme_font_size_override("font_size", 12)
+	action_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	drag_content.add_child(action_label)
+	
+	_drag_preview.visible = true
+	_drag_preview.global_position = get_global_mouse_position() - Vector2(60, 30)
+	
+	# Show appropriate drop highlight
+	_update_drop_highlights()
+
+
+func _update_drop_highlights() -> void:
+	if not _is_dragging:
+		_deck_drop_highlight.visible = false
+		_collection_drop_highlight.visible = false
+		return
+	
+	if _drag_source == "collection":
+		# Dragging from collection, highlight deck as drop target
+		_deck_drop_highlight.visible = true
+		_collection_drop_highlight.visible = false
+	else:
+		# Dragging from deck, highlight collection as drop target (remove)
+		_deck_drop_highlight.visible = false
+		_collection_drop_highlight.visible = true
+
+
+func _end_drag() -> void:
+	if not _is_dragging:
+		return
+	
+	_is_dragging = false
+	_drag_preview.visible = false
+	
+	# Hide drop highlights
+	_deck_drop_highlight.visible = false
+	_collection_drop_highlight.visible = false
+	
+	# Check where we dropped
+	var mouse_pos := get_global_mouse_position()
+	var deck_rect := deck_panel.get_global_rect()
+	var collection_rect := collection_panel.get_global_rect()
+	
+	if _drag_source == "collection" and deck_rect.has_point(mouse_pos):
+		# Add card to deck
+		_add_card_to_deck(_drag_card_data)
+	elif _drag_source == "deck" and collection_rect.has_point(mouse_pos):
+		# Remove card from deck
+		_remove_card_from_deck(_drag_card_data)
+	
+	_drag_card_data = null
+	_drag_source = ""
+
+
+func _add_card_to_deck(card_data: CardData) -> void:
+	var card_id := card_data.id if not card_data.id.is_empty() else card_data.card_name.to_lower()
+	
+	# Count current copies
+	var current_copies := 0
+	for id in current_deck:
+		if str(id).to_lower() == card_id:
+			current_copies += 1
+	
+	# Check if we can add more
+	if current_copies >= MAX_COPIES:
+		print("[DeckBuilder] Already have max copies of %s" % card_data.card_name)
+		return
+	
+	# Add to deck
+	current_deck.append(card_id)
+	print("[DeckBuilder] Added %s to deck (%d cards)" % [card_data.card_name, current_deck.size()])
+	
+	# Save to GameManager
+	_save_deck()
+	
+	# Refresh displays
+	_populate_deck_grid()
+	_populate_collection_list()
+
+
+func _remove_card_from_deck(card_data: CardData) -> void:
+	var card_id := card_data.id if not card_data.id.is_empty() else card_data.card_name.to_lower()
+	
+	# Find and remove one instance
+	for i in range(current_deck.size() - 1, -1, -1):
+		if str(current_deck[i]).to_lower() == card_id:
+			current_deck.remove_at(i)
+			print("[DeckBuilder] Removed %s from deck (%d cards)" % [card_data.card_name, current_deck.size()])
+			break
+	
+	# Save to GameManager
+	_save_deck()
+	
+	# Refresh displays
+	_populate_deck_grid()
+	_populate_collection_list()
+
+
+func _save_deck() -> void:
+	var deck_data: Dictionary = {}
+	if GameManager.has_meta("selected_deck"):
+		deck_data = GameManager.get_meta("selected_deck")
+	deck_data["cards"] = current_deck
+	GameManager.set_meta("selected_deck", deck_data)
+
+
+func _process(_delta: float) -> void:
+	# Update drag preview position
+	if _is_dragging and _drag_preview.visible:
+		_drag_preview.global_position = get_global_mouse_position() - Vector2(60, 30)
+
+
+func _input(event: InputEvent) -> void:
+	# Handle drag release anywhere
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+			if _is_dragging:
+				_end_drag()
+	
+	# Keyboard shortcuts
+	if event is InputEventKey and event.pressed:
+		if event.keycode == KEY_ESCAPE or event.keycode == KEY_B:
+			if _is_dragging:
+				# Cancel drag
+				_is_dragging = false
+				_drag_preview.visible = false
+				_deck_drop_highlight.visible = false
+				_collection_drop_highlight.visible = false
+				_drag_card_data = null
+				_drag_source = ""
+			else:
+				_on_back_pressed()
+
+
+# ============= TOOLTIP LOGIC =============
+
 func _on_collection_entry_hover(entry: Control, card_data: CardData) -> void:
+	# Don't show tooltip while dragging
+	if _is_dragging:
+		return
+	
 	# Remove old tooltip card if exists
 	if tooltip_card_instance and is_instance_valid(tooltip_card_instance):
 		tooltip_card_instance.queue_free()
@@ -507,6 +821,8 @@ func _on_collection_entry_hover(entry: Control, card_data: CardData) -> void:
 func _on_collection_entry_exit() -> void:
 	tooltip_popup.visible = false
 
+
+# ============= STYLING =============
 
 func _apply_styling() -> void:
 	_style_button(back_button)
@@ -566,9 +882,3 @@ func _style_panel(panel: PanelContainer, bg_color: Color) -> void:
 func _on_back_pressed() -> void:
 	var return_scene: String = GameManager.get_meta("deck_builder_return_scene") if GameManager.has_meta("deck_builder_return_scene") else "res://scenes/start_screen.tscn"
 	get_tree().change_scene_to_file(return_scene)
-
-
-func _input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed:
-		if event.keycode == KEY_ESCAPE or event.keycode == KEY_B:
-			_on_back_pressed()

@@ -1,4 +1,4 @@
-# res://schedule_builder.gd
+# res://scripts/schedule_builder.gd
 extends Control
 
 ## Emitted when the schedule is finalized
@@ -27,7 +27,7 @@ var activities: Dictionary = {
 	"side_job": {
 		"id": "side_job",
 		"name": "Side Job",
-		"description": "Work a shift to earn Gold for the shop.",
+		"description": "Work a shift to earn 150 Gold for the shop.",
 		"icon": "💰",
 		"color": Color(0.4, 0.8, 0.4)  # Green
 	},
@@ -224,6 +224,7 @@ func _create_slot_ui(index: int) -> Dictionary:
 	
 	# Icon Label (Empty initially)
 	var icon_lbl = Label.new()
+	icon_lbl.name = "Icon"
 	icon_lbl.text = "+"
 	icon_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	icon_lbl.add_theme_font_size_override("font_size", 32)
@@ -232,6 +233,7 @@ func _create_slot_ui(index: int) -> Dictionary:
 	
 	# Name Label
 	var name_lbl = Label.new()
+	name_lbl.name = "Name"
 	name_lbl.text = "Empty"
 	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_lbl.add_theme_color_override("font_color", Color(0.4, 0.4, 0.45))
@@ -295,7 +297,6 @@ func _create_activity_button(data: Dictionary) -> Button:
 
 func _add_activity(activity_id: String) -> void:
 	if current_schedule.size() >= MAX_SLOTS:
-		# Flash anim or sound could go here
 		return
 		
 	current_schedule.append(activity_id)
@@ -371,12 +372,13 @@ func _on_confirm_pressed() -> void:
 	
 	# Store schedule in GameManager
 	GameManager.set_meta("weekly_schedule", current_schedule)
+	GameManager.set_meta("current_day_index", 0)
 	
 	# Emit signal for any listeners
 	schedule_confirmed.emit(current_schedule)
 	
-	# Proceed to Main Game
-	get_tree().change_scene_to_file("res://scenes/main_game.tscn")
+	# Go to week runner to execute the schedule
+	get_tree().change_scene_to_file("res://scenes/week_runner.tscn")
 
 
 func _input(event: InputEvent) -> void:
