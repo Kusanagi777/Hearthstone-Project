@@ -1,6 +1,6 @@
 [gd_scene load_steps=3 format=3 uid="uid://c8j7k5l2m3n4p"]
 
-[ext_resource type="Script" uid="uid://dch5b8fwbeofw" path="res://victory_selection.gd" id="1_victory"]
+[ext_resource type="Script" uid="uid://dj8wrkl2td6ls" path="res://scripts/victory_selection.gd" id="1_victory"]
 [ext_resource type="PackedScene" uid="uid://b4kgbdvrib7yv" path="res://scenes/card_ui.tscn" id="2_card_ui"]
 
 [node name="VictorySelectionScreen" type="Control" node_paths=PackedStringArray("buckets_container", "title_label")]
