@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3 uid="uid://bavxof0atx"]
+
+[ext_resource type="Script" uid="uid://1prkicmuv6ut" path="res://data/card_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "NEU_02"
+card_name = "Town Crier"
+cost = 1
+attack = 1
+health = 1
+card_type = 0
+rarity = 0
+description = "Battlecry: Look at the top 3 cards of your deck. Shuffle them back in any order."

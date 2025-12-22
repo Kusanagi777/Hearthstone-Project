@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3 uid="uid://0xf5h7ceb"]
+
+[ext_resource type="Script" uid="uid://1prkicmuv6ut" path="res://data/card_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "ACE_25"
+card_name = "Sanctuary of Light"
+cost = 4
+attack = 0
+health = 4
+card_type = 2
+rarity = 2
+description = "Your Hero can only take 1 damage at a time. (Any instance of >1 damage is reduced to 1)."

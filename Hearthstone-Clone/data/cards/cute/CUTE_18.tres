@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3 uid="uid://0v7o2nbjk"]
+
+[ext_resource type="Script" uid="uid://1prkicmuv6ut" path="res://data/card_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "CUTE_18"
+card_name = "Loyal Bodyguard"
+cost = 5
+attack = 4
+health = 6
+card_type = 0
+rarity = 1
+description = "Taunt. Battlecry: Gain Health equal to your current Fans."

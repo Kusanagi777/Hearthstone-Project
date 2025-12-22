@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3 uid="uid://baqpfgn880"]
+
+[ext_resource type="Script" uid="uid://1prkicmuv6ut" path="res://data/card_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "NEU_49"
+card_name = "Totem Carver"
+cost = 4
+attack = 4
+health = 4
+card_type = 0
+rarity = 1
+description = "Battlecry: Summon a random 0/2 Totem with a passive effect."

@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3 uid="uid://d71c8csk"]
+
+[ext_resource type="Script" uid="uid://1prkicmuv6ut" path="res://data/card_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "NEU_36"
+card_name = "Location Scout"
+cost = 3
+attack = 2
+health = 3
+card_type = 0
+rarity = 1
+description = "Battlecry: Draw a Location from your deck."

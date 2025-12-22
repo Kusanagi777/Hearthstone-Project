@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3 uid="uid://u4bp2t5r0"]
+
+[ext_resource type="Script" uid="uid://1prkicmuv6ut" path="res://data/card_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "NEU_37"
+card_name = "Ironclad Enforcer"
+cost = 4
+attack = 3
+health = 3
+card_type = 0
+rarity = 1
+description = "Battlecry: Give a minion Immune this turn."

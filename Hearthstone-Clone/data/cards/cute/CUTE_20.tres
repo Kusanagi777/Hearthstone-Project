@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3 uid="uid://baa20vw6re"]
+
+[ext_resource type="Script" uid="uid://1prkicmuv6ut" path="res://data/card_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "CUTE_20"
+card_name = "Talent Scout"
+cost = 3
+attack = 1
+health = 4
+card_type = 0
+rarity = 1
+description = "Start of Turn: Summon a random 1-cost minion from your deck."

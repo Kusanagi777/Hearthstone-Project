@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3 uid="uid://xd3wf65n3"]
+
+[ext_resource type="Script" uid="uid://1prkicmuv6ut" path="res://data/card_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "TECH_25"
+card_name = "Tesla Coil"
+cost = 5
+attack = 0
+health = 4
+card_type = 2
+rarity = 2
+description = "Start of Turn: Deal damage to the enemy Hero equal to your unspent Mana from last turn."

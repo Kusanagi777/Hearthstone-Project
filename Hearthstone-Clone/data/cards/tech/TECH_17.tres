@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3 uid="uid://e6nbagfvi"]
+
+[ext_resource type="Script" uid="uid://1prkicmuv6ut" path="res://data/card_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "TECH_17"
+card_name = "Circuit Breaker"
+cost = 4
+attack = 2
+health = 6
+card_type = 0
+rarity = 1
+description = "Taunt. After this minion takes damage, gain 1 Battery."

@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3 uid="uid://p73k2f7xr"]
+
+[ext_resource type="Script" uid="uid://1prkicmuv6ut" path="res://data/card_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "NEU_46"
+card_name = "Ejector Seat"
+cost = 2
+attack = 0
+health = 0
+card_type = 1
+rarity = 1
+description = "Secret: When your Hero is attacked, return the attacker to the owner's hand."

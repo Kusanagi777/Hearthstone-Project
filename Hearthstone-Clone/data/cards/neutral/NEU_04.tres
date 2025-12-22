@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3 uid="uid://7d65btd2p"]
+
+[ext_resource type="Script" uid="uid://1prkicmuv6ut" path="res://data/card_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "NEU_04"
+card_name = "Street Vendor"
+cost = 2
+attack = 2
+health = 2
+card_type = 0
+rarity = 0
+description = "Deathrattle: Both players draw a card."

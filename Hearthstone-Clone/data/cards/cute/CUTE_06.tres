@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3 uid="uid://o01eo8e6s"]
+
+[ext_resource type="Script" uid="uid://1prkicmuv6ut" path="res://data/card_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "CUTE_06"
+card_name = "Dedicated Follower"
+cost = 3
+attack = 2
+health = 4
+card_type = 0
+rarity = 0
+description = "Taunt. Costs (1) less for every 3 minions you control."

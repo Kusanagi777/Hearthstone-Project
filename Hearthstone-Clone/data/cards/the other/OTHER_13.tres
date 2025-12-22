@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3 uid="uid://6ot01qedg"]
+
+[ext_resource type="Script" uid="uid://1prkicmuv6ut" path="res://data/card_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "OTHER_13"
+card_name = "Flesh Giant"
+cost = 5
+attack = 4
+health = 5
+card_type = 0
+rarity = 1
+description = "Taunt. Costs (1) less for each friendly minion that died this game."

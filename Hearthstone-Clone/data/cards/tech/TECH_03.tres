@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3 uid="uid://03anfudw7"]
+
+[ext_resource type="Script" uid="uid://1prkicmuv6ut" path="res://data/card_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "TECH_03"
+card_name = "Field Technician"
+cost = 2
+attack = 2
+health = 3
+card_type = 0
+rarity = 0
+description = "Battlecry: Restore 3 Health to a Location or Friendly Minion."

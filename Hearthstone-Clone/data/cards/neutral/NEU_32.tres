@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3 uid="uid://00fva1f7h"]
+
+[ext_resource type="Script" uid="uid://1prkicmuv6ut" path="res://data/card_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "NEU_32"
+card_name = "Saboteur"
+cost = 2
+attack = 2
+health = 2
+card_type = 0
+rarity = 1
+description = "Battlecry: Increase the cost of your opponent's next Action by (2)."

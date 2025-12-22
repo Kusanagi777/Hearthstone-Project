@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3 uid="uid://kwu7uqag6"]
+
+[ext_resource type="Script" uid="uid://1prkicmuv6ut" path="res://data/card_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "brute_legendary_02"
+card_name = "Ignis, Heart of the Volcano"
+cost = 5
+attack = 4
+health = 8
+card_type = 0
+rarity = 3
+description = "Whenever you generate Hunger, deal that much damage to a random enemy."

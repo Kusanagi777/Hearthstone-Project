@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3 uid="uid://vd8q0faln"]
+
+[ext_resource type="Script" uid="uid://1prkicmuv6ut" path="res://data/card_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "CUTE_01"
+card_name = "Backup Dancer"
+cost = 1
+attack = 1
+health = 1
+card_type = 0
+rarity = 0
+description = "Battlecry: Summon a 1/1 Dancer Token."

@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3 uid="uid://3d8xeacm5"]
+
+[ext_resource type="Script" uid="uid://1prkicmuv6ut" path="res://data/card_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "CUTE_24"
+card_name = "Glitter Bomb"
+cost = 3
+attack = 0
+health = 0
+card_type = 1
+rarity = 2
+description = "Give all enemy minions -2 Attack this turn. Gain 1 Fan for each affected minion."

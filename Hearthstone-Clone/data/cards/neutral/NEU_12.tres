@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3 uid="uid://03dpe335g"]
+
+[ext_resource type="Script" uid="uid://1prkicmuv6ut" path="res://data/card_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "NEU_12"
+card_name = "Opportunist Scavenger"
+cost = 3
+attack = 3
+health = 2
+card_type = 0
+rarity = 0
+description = "Battlecry: If an enemy minion died this turn, gain +2 Health."

@@ -227,7 +227,7 @@ func _update_visuals() -> void:
 			if health_icon:
 				health_icon.visible = true
 		
-		CardData.CardType.WEAPON:
+		CardData.CardType.LOCATION:
 			if attack_label:
 				attack_label.text = str(card_data.attack)
 			if health_label:
@@ -236,12 +236,6 @@ func _update_visuals() -> void:
 				attack_icon.visible = true
 			if health_icon:
 				health_icon.visible = true
-		
-		CardData.CardType.SPELL, CardData.CardType.HERO_POWER:
-			if attack_icon:
-				attack_icon.visible = false
-			if health_icon:
-				health_icon.visible = false
 	
 	if description_label:
 		if card_data.has_method("get_formatted_description"):

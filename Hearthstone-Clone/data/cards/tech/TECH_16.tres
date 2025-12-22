@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3 uid="uid://rtkalr2te"]
+
+[ext_resource type="Script" uid="uid://1prkicmuv6ut" path="res://data/card_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "TECH_16"
+card_name = "Battery Ram"
+cost = 5
+attack = 4
+health = 4
+card_type = 0
+rarity = 1
+description = "Rush. Battlecry: Spend 3 Battery to gain +2/+2."

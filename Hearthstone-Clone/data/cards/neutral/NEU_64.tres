@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3 uid="uid://4wdghs3u1"]
+
+[ext_resource type="Script" uid="uid://1prkicmuv6ut" path="res://data/card_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "NEU_64"
+card_name = "Omega Weapon"
+cost = 8
+attack = 4
+health = 10
+card_type = 0
+rarity = 3
+description = "Mega-Windfury (Can attack 4 times). Can't attack Heroes."

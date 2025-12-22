@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3 uid="uid://3vt8wvfla"]
+
+[ext_resource type="Script" uid="uid://1prkicmuv6ut" path="res://data/card_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "brute_uncommon_01"
+card_name = "Pain-Fueled Berzerker"
+cost = 3
+attack = 2
+health = 4
+card_type = 0
+rarity = 0
+description = "Aggressive. Has -2 Attack on your opponent's turn."

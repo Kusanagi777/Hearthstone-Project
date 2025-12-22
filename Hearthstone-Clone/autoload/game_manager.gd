@@ -357,11 +357,11 @@ func try_play_card(player_id: int, card: CardData, target: Variant = null) -> bo
 				push_warning("Board is full")
 				return false
 		
-		CardData.CardType.SPELL:
+		CardData.CardType.ACTION:
 			# Spells may require valid targets - handled by effect scripts
 			pass
 		
-		CardData.CardType.WEAPON:
+		CardData.CardType.LOCATION:
 			# Weapons replace existing weapon
 			pass
 	
@@ -386,12 +386,12 @@ func try_play_card(player_id: int, card: CardData, target: Variant = null) -> bo
 	
 	# Handle card type specific logic
 	match card.card_type:
-		CardData.CardType.SPELL:
+		CardData.CardType.ACTION:
 			spell_cast.emit(player_id, card, target)
 			_execute_card_effect(player_id, card, target, "on_play")
 			player_data["graveyard"].append(card)
 		
-		CardData.CardType.WEAPON:
+		CardData.CardType.LOCATION:
 			_equip_weapon(player_id, card)
 		
 		CardData.CardType.MINION:

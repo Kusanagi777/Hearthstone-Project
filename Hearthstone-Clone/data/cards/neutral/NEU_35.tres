@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3 uid="uid://8yxghncdb"]
+
+[ext_resource type="Script" uid="uid://1prkicmuv6ut" path="res://data/card_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "NEU_35"
+card_name = "Gravedigger"
+cost = 3
+attack = 3
+health = 4
+card_type = 0
+rarity = 1
+description = "Deathrattle: Shuffle a minion that died this game into your deck."

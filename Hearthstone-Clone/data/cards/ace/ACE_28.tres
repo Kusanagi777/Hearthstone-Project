@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3 uid="uid://1eo8gjbae"]
+
+[ext_resource type="Script" uid="uid://1prkicmuv6ut" path="res://data/card_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "ACE_28"
+card_name = "Avatar of Vengeance"
+cost = 7
+attack = 6
+health = 6
+card_type = 0
+rarity = 3
+description = "Battlecry: Transform your Hero. Your new Hero Power becomes \"Spend 2 Spirit: Deal 4 Damage.\""

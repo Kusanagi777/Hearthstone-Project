@@ -5,9 +5,9 @@ extends Resource
 ## Enumeration for card types
 enum CardType {
 	MINION,
-	SPELL,
-	WEAPON,
-	HERO_POWER
+	ACTION,
+	LOCATION,
+	CLASS_POWER
 }
 
 ## Enumeration for card rarity
@@ -16,18 +16,6 @@ enum Rarity {
 	RARE,
 	EPIC,
 	LEGENDARY
-}
-
-## Enumeration for spell schools (for potential synergies)
-enum SpellSchool {
-	NONE,
-	FIRE,
-	FROST,
-	NATURE,
-	ARCANE,
-	HOLY,
-	SHADOW,
-	FEL
 }
 
 ## Unique identifier for this card
@@ -39,10 +27,10 @@ enum SpellSchool {
 ## Mana cost to play this card
 @export_range(0, 10) var cost: int = 0
 
-## Base attack value (for minions and weapons)
+## Base attack value (for minions and locations)
 @export_range(0, 20) var attack: int = 0
 
-## Base health value (for minions) or durability (for weapons)
+## Base health value (for minions and locations)
 @export_range(0, 20) var health: int = 0
 
 ## Card type determines behavior and valid targets
@@ -51,9 +39,6 @@ enum SpellSchool {
 ## Rarity affects visual styling and deck limits
 @export var rarity: Rarity = Rarity.COMMON
 
-## Spell school for spell cards
-@export var spell_school: SpellSchool = SpellSchool.NONE
-
 ## Card art displayed in the frame
 @export var texture: Texture2D
 
@@ -61,36 +46,19 @@ enum SpellSchool {
 @export_multiline var description: String = ""
 
 ## Tags/Keywords for special abilities
-## Valid keywords: Charge, Taunt, Divine Shield, Windfury, Lifesteal, Poisonous,
-## Battlecry, Deathrattle, Rush, Stealth, Reborn
+## "Charge", "Taunt", "Shielded", "Aggressive", "Drain",
+## "Lethal", "On-play", "On-death", "Rush", "Hidden", "Persistent"
 @export var tags: Array[String] = []
 
 ## Optional: Script path for custom card effects
 @export_file("*.gd") var effect_script: String = ""
 
-## Targeting requirement for spells
+## Targeting requirement for actions
 @export_enum("None", "Minion", "EnemyMinion", "FriendlyMinion", "Character", "Hero") var target_type: String = "None"
-
-
-## Validates the resource data in the editor
-func _validate_property(property: Dictionary) -> void:
-	if property.name in ["attack", "health"]:
-		if card_type == CardType.SPELL:
-			property.usage = PROPERTY_USAGE_NO_EDITOR
-	
-	if property.name == "spell_school":
-		if card_type != CardType.SPELL:
-			property.usage = PROPERTY_USAGE_NO_EDITOR
-	
-	if property.name == "target_type":
-		if card_type != CardType.SPELL:
-			property.usage = PROPERTY_USAGE_NO_EDITOR
-
 
 ## Check if card has a specific keyword
 func has_keyword(keyword: String) -> bool:
 	return keyword in tags
-
 
 ## Creates a runtime copy of this card data
 func duplicate_for_play() -> CardData:
@@ -102,7 +70,6 @@ func duplicate_for_play() -> CardData:
 	copy.health = health
 	copy.card_type = card_type
 	copy.rarity = rarity
-	copy.spell_school = spell_school
 	copy.texture = texture
 	copy.description = description
 	copy.tags = tags.duplicate()
@@ -110,12 +77,11 @@ func duplicate_for_play() -> CardData:
 	copy.target_type = target_type
 	return copy
 
-
 ## Get formatted description with keyword highlighting
 func get_formatted_description() -> String:
 	var formatted := description
-	var keywords := ["Charge", "Taunt", "Divine Shield", "Windfury", "Lifesteal", 
-					 "Poisonous", "Battlecry", "Deathrattle", "Rush", "Stealth", "Reborn"]
+	var keywords := ["Charge", "Taunt", "Shielded", "Aggressive", "Drain", 
+					 "Lethal", "On-play", "On-death", "Rush", "Hidden", "Persistent"]
 	
 	for keyword in keywords:
 		formatted = formatted.replace(keyword, "[b]%s[/b]" % keyword)

@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3 uid="uid://ifxa0cbf0"]
+
+[ext_resource type="Script" uid="uid://1prkicmuv6ut" path="res://data/card_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "brute_uncommon_05"
+card_name = "Vitality Drain"
+cost = 2
+attack = 0
+health = 0
+card_type = 1
+rarity = 0
+description = "Deal 2 damage to a minion. Give your Hero +2 Attack this turn."

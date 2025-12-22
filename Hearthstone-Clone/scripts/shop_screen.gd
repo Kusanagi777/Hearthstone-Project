@@ -138,9 +138,9 @@ func _load_card_database() -> void:
 				match card_data.card_type:
 					CardData.CardType.MINION:
 						icon = "👤"
-					CardData.CardType.SPELL:
+					CardData.CardType.ACTION:
 						icon = "✨"
-					CardData.CardType.WEAPON:
+					CardData.CardType.LOCATION:
 						icon = "⚔️"
 				
 				all_cards.append({
@@ -152,7 +152,7 @@ func _load_card_database() -> void:
 					"price": base_price,
 					"icon": icon,
 					"description": card_data.description if card_data.description != "" else "A %s card." % card_data.card_name,
-					"is_spell": card_data.card_type == CardData.CardType.SPELL
+					"is_spell": card_data.card_type == CardData.CardType.ACTION
 				})
 		
 		file_name = dir.get_next()

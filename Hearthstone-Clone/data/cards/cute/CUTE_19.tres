@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3 uid="uid://wl0b54evf"]
+
+[ext_resource type="Script" uid="uid://1prkicmuv6ut" path="res://data/card_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "CUTE_19"
+card_name = "Light Stick Wave"
+cost = 2
+attack = 0
+health = 0
+card_type = 1
+rarity = 1
+description = "Deal 1 damage to a random enemy for every friendly minion."
