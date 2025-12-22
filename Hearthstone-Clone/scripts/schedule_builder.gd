@@ -40,8 +40,8 @@ var activities: Dictionary = {
 	}
 }
 
-## Current Schedule (Array of activity IDs)
-var current_schedule: Array[String] = []
+## Current Schedule - using untyped Array to avoid meta storage issues
+var current_schedule: Array = []
 
 ## UI References
 var title_label: Label
@@ -216,79 +216,108 @@ func _create_slot_ui(index: int) -> Dictionary:
 	panel.add_child(vbox)
 	
 	# Day Label (Day 1, Day 2, etc.)
-	var day_lbl = Label.new()
-	day_lbl.text = "Day %d" % (index + 1)
-	day_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	day_lbl.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
-	vbox.add_child(day_lbl)
+	var day_label = Label.new()
+	day_label.text = "Day %d" % (index + 1)
+	day_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	day_label.add_theme_font_size_override("font_size", 14)
+	day_label.add_theme_color_override("font_color", Color(0.5, 0.5, 0.55))
+	vbox.add_child(day_label)
 	
-	# Icon Label (Empty initially)
-	var icon_lbl = Label.new()
-	icon_lbl.name = "Icon"
-	icon_lbl.text = "+"
-	icon_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	icon_lbl.add_theme_font_size_override("font_size", 32)
-	icon_lbl.add_theme_color_override("font_color", Color(0.3, 0.3, 0.35))
-	vbox.add_child(icon_lbl)
+	# Centered container for icon and name
+	var center = MarginContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.add_theme_constant_override("margin_left", 10)
+	center.add_theme_constant_override("margin_right", 10)
+	center.add_theme_constant_override("margin_top", 15)
+	center.add_theme_constant_override("margin_bottom", 15)
+	panel.add_child(center)
 	
-	# Name Label
-	var name_lbl = Label.new()
-	name_lbl.name = "Name"
-	name_lbl.text = "Empty"
-	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_lbl.add_theme_color_override("font_color", Color(0.4, 0.4, 0.45))
-	vbox.add_child(name_lbl)
+	var center_vbox = VBoxContainer.new()
+	center_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	center_vbox.add_theme_constant_override("separation", 5)
+	center.add_child(center_vbox)
 	
-	# Click to remove logic
-	panel.gui_input.connect(func(event): 
+	# Icon
+	var icon_label = Label.new()
+	icon_label.text = "+"
+	icon_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	icon_label.add_theme_font_size_override("font_size", 36)
+	icon_label.add_theme_color_override("font_color", Color(0.3, 0.3, 0.35))
+	center_vbox.add_child(icon_label)
+	
+	# Name
+	var name_label = Label.new()
+	name_label.text = "Empty"
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.add_theme_font_size_override("font_size", 14)
+	name_label.add_theme_color_override("font_color", Color(0.4, 0.4, 0.45))
+	center_vbox.add_child(name_label)
+	
+	# Make clickable for removal
+	panel.gui_input.connect(func(event):
 		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 			_remove_activity_at(index)
 	)
 	
-	return {"panel": panel, "icon": icon_lbl, "name": name_lbl}
+	return {
+		"panel": panel,
+		"icon": icon_label,
+		"name": name_label
+	}
 
 
-## Helper to create the activity selection buttons
-func _create_activity_button(data: Dictionary) -> Button:
+## Helper to create activity selection buttons
+func _create_activity_button(activity_data: Dictionary) -> Button:
 	var btn = Button.new()
-	btn.custom_minimum_size = Vector2(180, 100)
+	btn.custom_minimum_size = Vector2(130, 100)
 	
-	# Custom style
-	var style = StyleBoxFlat.new()
-	style.bg_color = data["color"].darkened(0.7)
-	style.border_color = data["color"]
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(8)
-	btn.add_theme_stylebox_override("normal", style)
-	
-	var hover = style.duplicate()
-	hover.bg_color = data["color"].darkened(0.5)
-	btn.add_theme_stylebox_override("hover", hover)
-	
-	# Internal layout for Button
 	var vbox = VBoxContainer.new()
-	vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
-	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE  # Let button handle input
 	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	btn.add_child(vbox)
 	
 	var icon = Label.new()
-	icon.text = data["icon"]
+	icon.text = activity_data["icon"]
 	icon.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	icon.add_theme_font_size_override("font_size", 28)
-	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	icon.add_theme_font_size_override("font_size", 32)
 	vbox.add_child(icon)
 	
-	var lbl = Label.new()
-	lbl.text = data["name"]
-	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	vbox.add_child(lbl)
+	var name_lbl = Label.new()
+	name_lbl.text = activity_data["name"]
+	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_lbl.add_theme_color_override("font_color", activity_data["color"])
+	vbox.add_child(name_lbl)
 	
-	# Signals
-	btn.pressed.connect(func(): _add_activity(data["id"]))
-	btn.mouse_entered.connect(func(): _show_description(data["description"]))
-	btn.mouse_exited.connect(func(): _show_description("Select an activity to add it to your schedule."))
+	# Style the button
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.15, 0.18, 0.22)
+	style.border_color = activity_data["color"].darkened(0.3)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(8)
+	style.set_content_margin_all(10)
+	btn.add_theme_stylebox_override("normal", style)
+	
+	var hover_style = style.duplicate()
+	hover_style.bg_color = Color(0.2, 0.24, 0.28)
+	hover_style.border_color = activity_data["color"]
+	btn.add_theme_stylebox_override("hover", hover_style)
+	
+	var pressed_style = style.duplicate()
+	pressed_style.bg_color = Color(0.12, 0.14, 0.18)
+	btn.add_theme_stylebox_override("pressed", pressed_style)
+	
+	var disabled_style = style.duplicate()
+	disabled_style.bg_color = Color(0.1, 0.1, 0.12)
+	disabled_style.border_color = Color(0.2, 0.2, 0.25)
+	btn.add_theme_stylebox_override("disabled", disabled_style)
+	
+	btn.pressed.connect(func():
+		_add_activity(activity_data["id"])
+		_show_description(activity_data["description"])
+	)
+	
+	btn.mouse_entered.connect(func():
+		_show_description(activity_data["description"])
+	)
 	
 	return btn
 
@@ -298,15 +327,19 @@ func _create_activity_button(data: Dictionary) -> Button:
 func _add_activity(activity_id: String) -> void:
 	if current_schedule.size() >= MAX_SLOTS:
 		return
-		
+	
+	# Store as plain string in untyped array
 	current_schedule.append(activity_id)
+	print("[ScheduleBuilder] Added activity: %s, schedule: %s" % [activity_id, current_schedule])
 	_update_slots_visuals()
 	_update_state()
 
 
 func _remove_activity_at(index: int) -> void:
 	if index < current_schedule.size():
+		var removed = current_schedule[index]
 		current_schedule.remove_at(index)
+		print("[ScheduleBuilder] Removed activity at %d: %s, schedule: %s" % [index, removed, current_schedule])
 		_update_slots_visuals()
 		_update_state()
 
@@ -320,7 +353,7 @@ func _update_slots_visuals() -> void:
 		
 		if i < current_schedule.size():
 			# Slot is filled
-			var act_id = current_schedule[i]
+			var act_id = str(current_schedule[i])  # Ensure string
 			var data = activities[act_id]
 			
 			icon_lbl.text = data["icon"]
@@ -368,14 +401,23 @@ func _on_back_pressed() -> void:
 
 
 func _on_confirm_pressed() -> void:
-	print("[ScheduleBuilder] Schedule confirmed: ", current_schedule)
+	# Convert to a plain Array (not typed) to avoid meta storage issues
+	var schedule_to_store: Array = []
+	for item in current_schedule:
+		schedule_to_store.append(str(item))
+	
+	print("[ScheduleBuilder] Schedule confirmed: ", schedule_to_store)
 	
 	# Store schedule in GameManager
-	GameManager.set_meta("weekly_schedule", current_schedule)
+	GameManager.set_meta("weekly_schedule", schedule_to_store)
 	GameManager.set_meta("current_day_index", 0)
 	
+	# Verify storage
+	var verify = GameManager.get_meta("weekly_schedule")
+	print("[ScheduleBuilder] Verified stored schedule: ", verify, " type: ", typeof(verify))
+	
 	# Emit signal for any listeners
-	schedule_confirmed.emit(current_schedule)
+	schedule_confirmed.emit(schedule_to_store)
 	
 	# Go to week runner to execute the schedule
 	get_tree().change_scene_to_file("res://scenes/week_runner.tscn")
