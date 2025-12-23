@@ -1,4 +1,4 @@
-# res://hero_power_selection.gd
+# res://scripts/hero_power_selection.gd
 extends Control
 
 ## The selected class data (retrieved from GameManager)
@@ -9,29 +9,29 @@ var selected_deck: Dictionary = {}
 ## Database of Hero Powers for each class
 var hero_power_database: Dictionary = {
 	"brute": [
-		{"name": "Iron Hide", "cost": 2, "description": "Gain 2 Armor.", "id": "armor_up"},
-		{"name": "Reckless Strike", "cost": 2, "description": "Deal 1 damage to all minions.", "id": "whirlwind"},
-		{"name": "Battle Shout", "cost": 2, "description": "Give a friendly minion +2 Attack this turn.", "id": "shout"}
+		{"name": "Savage Strike", "cost": 2, "description": "Deal 1 damage to a target minion. If it dies, gain 5 Hunger.", "id": "savage_strike"},
+		{"name": "Call to the Pit", "cost": 2, "description": "Summon a 1/1 Pit Hound with Rush.", "id": "call_to_pit"},
+		{"name": "Blood for Blood", "cost": 2, "description": "Take 2 damage. Give a friendly minion +3 Attack this turn.", "id": "blood_for_blood"}
 	],
 	"technical": [
-		{"name": "Zap", "cost": 2, "description": "Deal 1 damage to any target.", "id": "fireblast"},
-		{"name": "Research", "cost": 2, "description": "Look at the top card of your deck.", "id": "scry"},
-		{"name": "Mana Surge", "cost": 1, "description": "Reduce the cost of a random spell in hand by (1).", "id": "reduce"}
+		{"name": "Static Shock", "cost": 2, "description": "Deal 1 damage to any target. Gain 2 Battery.", "id": "static_shock"},
+		{"name": "Fabricate", "cost": 2, "description": "Summon a 0/2 Barrier Bot with Taunt.", "id": "fabricate"},
+		{"name": "Optimize", "cost": 2, "description": "Look at the top 2 cards of your deck. Draw one; put the other on the bottom.", "id": "optimize"}
 	],
 	"cute": [
-		{"name": "Recruit Friend", "cost": 2, "description": "Summon a 1/1 Tiny Pal.", "id": "recruit"},
-		{"name": "Group Hug", "cost": 2, "description": "Restore 2 Health to your Hero.", "id": "heal"},
-		{"name": "Snack Time", "cost": 2, "description": "Give a minion +1 Health.", "id": "buff_hp"}
+		{"name": "Open Auditions", "cost": 2, "description": "Summon a 1/1 Backup Dancer.", "id": "open_auditions"},
+		{"name": "Pep Talk", "cost": 2, "description": "Give a minion +1/+1. If you have a Stage location active, give it +2/+2 instead.", "id": "pep_talk"},
+		{"name": "Merch Cannon", "cost": 2, "description": "Draw a card. It costs (1) more.", "id": "merch_cannon"}
 	],
 	"the_other": [
-		{"name": "Dark Pact", "cost": 2, "description": "Deal 2 damage to your hero. Draw a card.", "id": "dark_pact"},
-		{"name": "Shadow Step", "cost": 2, "description": "Return a friendly minion to your hand.", "id": "shadowstep"},
-		{"name": "Void Touch", "cost": 2, "description": "Give a minion -1 Attack.", "id": "void_touch"}
+		{"name": "Grim Ritual", "cost": 2, "description": "Destroy a friendly minion. Draw a card.", "id": "grim_ritual"},
+		{"name": "Grave Touch", "cost": 2, "description": "Deal 1 damage to a minion. If it dies, summon a 1/1 Skeleton.", "id": "grave_touch"},
+		{"name": "Haunt", "cost": 2, "description": "Add a random Undead to your hand.", "id": "haunt"}
 	],
 	"the_ace": [
-		{"name": "Lucky Draw", "cost": 2, "description": "Draw a card. If it costs (3) or less, it costs (0).", "id": "lucky_draw"},
-		{"name": "All In", "cost": 2, "description": "Deal 1-4 damage randomly to an enemy.", "id": "all_in"},
-		{"name": "Card Trick", "cost": 2, "description": "Discover a card from your deck.", "id": "card_trick"}
+		{"name": "Blood Oath", "cost": 2, "description": "Deal 1 damage to your Hero. Gain 1 Mana Crystal this turn only.", "id": "blood_oath"},
+		{"name": "Draconic Armor", "cost": 2, "description": "Gain 2 Armor.", "id": "draconic_armor"},
+		{"name": "Challenge", "cost": 2, "description": "Give a minion Taunt and +1 Health.", "id": "challenge"}
 	],
 	"default": [
 		{"name": "Minor Heal", "cost": 2, "description": "Restore 2 Health to any target.", "id": "generic_heal"},
