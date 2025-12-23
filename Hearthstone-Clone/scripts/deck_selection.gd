@@ -385,7 +385,7 @@ func _create_deck_button(deck_data: Dictionary, index: int) -> Control:
 	
 	# Card count
 	var count_label = Label.new()
-	count_label.text = "📜 30 Cards"
+	count_label.text = "📜 15 Cards"
 	count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	count_label.add_theme_font_size_override("font_size", 14)
 	count_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.75))
@@ -554,8 +554,6 @@ func _on_select_pressed() -> void:
 	GameManager.set_meta("selected_deck", selected_deck)
 	
 	# CHANGE: Instead of going to main_game, go to hero_power_selection
-	# Make sure you create the scene file 'hero_power_selection.tscn' 
-	# and attach the new script to the root node!
 	get_tree().change_scene_to_file("res://scenes/hero_power_selection.tscn")
 
 

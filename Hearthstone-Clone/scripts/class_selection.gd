@@ -12,9 +12,7 @@ var classes: Array[Dictionary] = [
 		"description": "Raw power and overwhelming force. The Brute crushes enemies with high-attack minions and direct damage. Favors aggressive strategies and trading health for power.",
 		"color": Color(0.8, 0.2, 0.2),  # Red
 		"icon": "⚔️",
-		"health": 35,
-		"hero_power": "Rage Strike",
-		"hero_power_desc": "Deal 1 damage to a random enemy."
+		"health": 30,
 	},
 	{
 		"id": "technical",
@@ -22,9 +20,7 @@ var classes: Array[Dictionary] = [
 		"description": "Precision and planning. The Technical class manipulates the battlefield with card draw, removal spells, and clever combinations. Knowledge is power.",
 		"color": Color(0.2, 0.4, 0.8),  # Blue
 		"icon": "🔧",
-		"health": 28,
-		"hero_power": "Analyze",
-		"hero_power_desc": "Draw a card. It costs (1) less."
+		"health": 30,
 	},
 	{
 		"id": "cute",
@@ -33,8 +29,6 @@ var classes: Array[Dictionary] = [
 		"color": Color(1.0, 0.6, 0.8),  # Pink
 		"icon": "🌸",
 		"health": 30,
-		"hero_power": "Friend Summon",
-		"hero_power_desc": "Summon a 1/1 Buddy."
 	},
 	{
 		"id": "other",
@@ -43,8 +37,6 @@ var classes: Array[Dictionary] = [
 		"color": Color(0.5, 0.2, 0.6),  # Purple
 		"icon": "👁️",
 		"health": 30,
-		"hero_power": "???",
-		"hero_power_desc": "Do something unexpected."
 	},
 	{
 		"id": "ace",
@@ -53,8 +45,6 @@ var classes: Array[Dictionary] = [
 		"color": Color(0.9, 0.75, 0.3),  # Gold
 		"icon": "⭐",
 		"health": 30,
-		"hero_power": "Adapt",
-		"hero_power_desc": "Choose a bonus for this turn."
 	}
 ]
 

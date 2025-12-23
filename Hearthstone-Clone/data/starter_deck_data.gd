@@ -14,13 +14,11 @@ extends Resource
 ## The class this deck belongs to
 @export var class_id: String = ""
 
-## Deck archetype (Aggro, Control, Midrange, Combo)
-@export_enum("Aggro", "Control", "Midrange", "Combo") var archetype: String = "Midrange"
 
 ## Theme color for the deck
 @export var theme_color: Color = Color.WHITE
 
-## List of card IDs in this deck (30 cards)
+## List of card IDs in this deck (15 cards)
 @export var card_ids: Array[String] = []
 
 ## Key card highlight (the signature card of this deck)
