@@ -49,6 +49,8 @@ signal battlecry_triggered(player_id: int, minion: Node, card: CardData)
 ## Emitted for deathrattle triggers
 signal deathrattle_triggered(player_id: int, card: CardData, board_position: int)
 
+## Emitted for minions with persistent
+signal persistent_respawn_requested(player_id: int, card: CardData, lane_index: int, is_front: bool)
 
 ## Game phase enumeration
 enum GamePhase {
@@ -467,7 +469,7 @@ func remove_minion_from_board(player_id: int, minion_node: Node) -> void:
 		board.remove_at(index)
 
 
-## Execute combat between two minions
+## Execute combat between two minions - UPDATED with all keyword logic
 func execute_combat(attacker: Node, defender: Node) -> void:
 	if not is_instance_valid(attacker) or not is_instance_valid(defender):
 		return
@@ -477,55 +479,86 @@ func execute_combat(attacker: Node, defender: Node) -> void:
 	var attacker_attack: int = attacker.current_attack
 	var defender_attack: int = defender.current_attack
 	
-	# Check for divine shield
-	var attacker_blocked: bool = attacker.has_divine_shield
-	var defender_blocked: bool = defender.has_divine_shield
+	# Check for Shielded (was Divine Shield)
+	var attacker_shielded: bool = attacker.has_shielded
+	var defender_shielded: bool = defender.has_shielded
 	
-	# Apply damage
-	if attacker_blocked:
-		attacker.remove_divine_shield()
+	# Track actual damage dealt (for Drain/Lifesteal)
+	var damage_to_attacker: int = 0
+	var damage_to_defender: int = 0
+	
+	# --- APPLY DAMAGE TO ATTACKER ---
+	if attacker_shielded:
+		attacker.remove_shielded()
 	else:
+		damage_to_attacker = defender_attack
 		attacker.take_damage(defender_attack)
 		
-		# Mechanic: PRIMAL (Attacker took damage)
-		# "Every time a unit from either side takes damage, the Primal gains 1 hunger"
+		# Check LETHAL: If defender has Lethal and dealt damage, attacker dies
+		if defender.has_lethal and defender_attack > 0:
+			attacker.current_health = 0
+			attacker._update_visuals()
+		
 		if defender_attack > 0:
 			_check_primal_damage_trigger()
 
-	if defender_blocked:
-		defender.remove_divine_shield()
+	# --- APPLY DAMAGE TO DEFENDER ---
+	if defender_shielded:
+		defender.remove_shielded()
 	else:
+		damage_to_defender = attacker_attack
 		defender.take_damage(attacker_attack)
 		
-		# Mechanic: PRIMAL (Defender took damage)
+		# Check LETHAL: If attacker has Lethal and dealt damage, defender dies
+		if attacker.has_lethal and attacker_attack > 0:
+			defender.current_health = 0
+			defender._update_visuals()
+		
 		if attacker_attack > 0:
 			_check_primal_damage_trigger()
+	
+	# --- DRAIN (Lifesteal) ---
+	# Attacker heals their hero for damage dealt
+	if attacker.has_drain and damage_to_defender > 0:
+		_heal_hero(attacker.owner_id, damage_to_defender)
+		print("[GameManager] Drain: Player %d healed for %d" % [attacker.owner_id, damage_to_defender])
+	
+	# Defender heals their hero for damage dealt (if they have Drain)
+	if defender.has_drain and damage_to_attacker > 0:
+		_heal_hero(defender.owner_id, damage_to_attacker)
+		print("[GameManager] Drain: Player %d healed for %d" % [defender.owner_id, damage_to_attacker])
+	
+	# --- HIDDEN (Stealth) breaks when attacking ---
+	if attacker.has_hidden:
+		attacker.break_hidden()
+		print("[GameManager] Hidden broken - minion revealed")
+	
+	# --- UPDATE ATTACK TRACKING ---
+	attacker.has_attacked = true
+	attacker.attacks_this_turn += 1  # Important for Aggressive (Windfury)
 	
 	# Prepare data for signal
 	var attacker_data := {
 		"node": attacker,
 		"damage_dealt": attacker_attack,
-		"damage_taken": 0 if attacker_blocked else defender_attack,
-		"shield_popped": attacker_blocked
+		"damage_taken": damage_to_attacker,
+		"shield_popped": attacker_shielded
 	}
 	var defender_data := {
 		"node": defender,
 		"damage_dealt": defender_attack,
-		"damage_taken": 0 if defender_blocked else attacker_attack,
-		"shield_popped": defender_blocked
+		"damage_taken": damage_to_defender,
+		"shield_popped": defender_shielded
 	}
 	
 	combat_occurred.emit(attacker_data, defender_data)
-	
-	attacker.has_attacked = true
 	
 	await get_tree().process_frame
 	_check_minion_deaths()
 	
 	current_phase = GamePhase.PLAY
 
-
-## Attack the enemy hero
+## Attack the enemy hero - UPDATED with Drain
 func attack_hero(attacker: Node, target_player_id: int) -> void:
 	if not is_instance_valid(attacker):
 		return
@@ -538,8 +571,7 @@ func attack_hero(attacker: Node, target_player_id: int) -> void:
 	if player_data["hero_armor"] > 0:
 		var armor_damage := mini(attacker_attack, player_data["hero_armor"])
 		player_data["hero_armor"] -= armor_damage
-		attacker_attack -= armor_damage # Remainder
-		# Note: Armor damage counts as "taking damage" for most triggers? Usually yes.
+		attacker_attack -= armor_damage
 		damage_dealt += armor_damage
 	
 	# Remaining damage hits health
@@ -547,24 +579,26 @@ func attack_hero(attacker: Node, target_player_id: int) -> void:
 		player_data["hero_health"] -= attacker_attack
 		damage_dealt += attacker_attack
 	
+	# --- DRAIN (Lifesteal) when attacking hero ---
+	if attacker.has_drain and damage_dealt > 0:
+		_heal_hero(attacker.owner_id, damage_dealt)
+		print("[GameManager] Drain: Player %d healed for %d from hero attack" % [attacker.owner_id, damage_dealt])
+	
+	# --- HIDDEN breaks when attacking ---
+	if attacker.has_hidden:
+		attacker.break_hidden()
+	
 	attacker.has_attacked = true
+	attacker.attacks_this_turn += 1
+	
 	print("[GameManager] Player %d hero took %d damage, now at %d HP" % [
 		target_player_id, damage_dealt, player_data["hero_health"]
 	])
 	
 	if damage_dealt > 0:
-		# Mechanic: THE ACE
-		# "Every time The Ace takes damage, they gain spirit."
+		# Mechanic: THE ACE - gains spirit when taking damage
 		if players[target_player_id]["class_id"] == "ace":
 			_modify_resource(target_player_id, 1)
-			
-		# Mechanic: PRIMAL
-		# "Every time a UNIT... takes damage". 
-		# If Heroes count as units for Primal, uncomment below. 
-		# Usually "Unit" = Minion, "Character" = Minion + Hero. 
-		# We will assume strictly Minions for Primal based on standard CCG wording, 
-		# but if you want Heroes included, call _check_primal_damage_trigger() here.
-		pass
 
 	_check_hero_death(target_player_id)
 
@@ -576,6 +610,13 @@ func _check_primal_damage_trigger() -> void:
 		if players[i]["class_id"] == "primal":
 			_modify_resource(i, 1)
 
+## Helper to heal a hero
+func _heal_hero(player_id: int, amount: int) -> void:
+	var player_data: Dictionary = players[player_id]
+	player_data["hero_health"] = mini(
+		player_data["hero_health"] + amount,
+		player_data["hero_max_health"]
+	)
 
 ## Check if any minions should die
 func _check_minion_deaths() -> void:
@@ -591,30 +632,64 @@ func _check_minion_deaths() -> void:
 			await _destroy_minion(player_id, minion)
 
 
-## Destroy a minion
+## Destroy a minion - UPDATED with Persistent (Reborn) logic
 func _destroy_minion(player_id: int, minion: Node) -> void:
 	var board_position: int = players[player_id]["board"].find(minion)
+	
+	# Store Persistent data BEFORE removing
+	var had_persistent: bool = minion.has_persistent
+	var minion_card: CardData = minion.get_card_data() if minion.has_method("get_card_data") else null
+	var lane_index: int = minion.lane_index
+	var is_front: bool = minion.is_front_row
+	
 	remove_minion_from_board(player_id, minion)
 	
-	# Trigger deathrattle before removing (logic existing)
-	if minion.has_method("get_card_data"):
-		var minion_card: CardData = minion.get_card_data()
-		if minion_card and "Deathrattle" in minion_card.tags:
+	# Trigger deathrattle / On-death
+	if minion_card:
+		if minion_card.has_keyword("Deathrattle") or minion_card.has_keyword("On-death"):
 			trigger_deathrattle(player_id, minion_card, board_position)
 		players[player_id]["graveyard"].append(minion_card)
 	
-	# Mechanic: THE OTHER
-	# "Every time one of The Other's minions dies, they get 1 omen."
+	# Mechanic: THE OTHER - gains omen when minion dies
 	if players[player_id]["class_id"] == "other":
 		_modify_resource(player_id, 1)
 	
 	entity_died.emit(player_id, minion)
+	
+	# --- PERSISTENT (Reborn) ---
+	# Minion returns with 1 HP and loses Persistent
+	if had_persistent and minion_card:
+		print("[GameManager] Persistent triggered for %s" % minion_card.card_name)
+		
+		# Create a copy without Persistent
+		var respawn_card := minion_card.duplicate_for_play()
+		respawn_card.tags.erase("Persistent")
+		
+		# Emit signal for PlayerController to handle respawn
+		persistent_respawn_requested.emit(player_id, respawn_card, lane_index, is_front)
 	
 	if minion.has_method("play_death_animation"):
 		await minion.play_death_animation()
 	else:
 		minion.queue_free()
 
+## Get taunt minions in a specific row - NEW function for row-based Taunt
+func get_taunt_minions_in_row(player_id: int, is_front_row: bool) -> Array[Node]:
+	var taunts: Array[Node] = []
+	for minion in players[player_id]["board"]:
+		if is_instance_valid(minion) and minion.has_taunt:
+			if minion.is_front_row == is_front_row:
+				taunts.append(minion)
+	return taunts
+
+
+## Get all taunt minions (for backwards compatibility)
+func get_taunt_minions(player_id: int) -> Array[Node]:
+	var taunts: Array[Node] = []
+	for minion in players[player_id]["board"]:
+		if is_instance_valid(minion) and minion.has_taunt:
+			taunts.append(minion)
+	return taunts
 
 ## End the current turn
 func end_turn() -> void:
@@ -707,29 +782,45 @@ func get_opponent_id(player_id: int) -> int:
 	return 1 - player_id
 
 
-## Find valid taunt targets
-func get_taunt_minions(player_id: int) -> Array[Node]:
-	var taunts: Array[Node] = []
-	for minion in players[player_id]["board"]:
-		if is_instance_valid(minion) and minion.has_taunt:
-			taunts.append(minion)
-	return taunts
-
-
-## Check if attacking this target is valid (taunt check)
+## Check if attacking this target is valid - UPDATED for row-based Taunt
+## Your definition: "Opposing minions cannot select another minion who shares a row with this minion"
 func is_valid_attack_target(attacker_owner: int, target: Variant) -> bool:
 	var defender_id := get_opponent_id(attacker_owner)
-	var taunts := get_taunt_minions(defender_id)
 	
-	if taunts.is_empty():
-		return true  # No taunts, any target is valid
-	
-	# If there are taunts, must attack a taunt
 	if target is Node:
-		return target in taunts
+		# Check if target has Hidden (cannot be targeted)
+		if target.has_hidden:
+			return false
+		
+		# Get the row of the target
+		var target_is_front: bool = target.is_front_row
+		
+		# Check for taunts in the SAME ROW as the target
+		var row_taunts := get_taunt_minions_in_row(defender_id, target_is_front)
+		
+		if row_taunts.is_empty():
+			return true  # No taunts in this row, can attack
+		
+		# If there are taunts in this row, target must be one of them
+		return target in row_taunts
 	
-	# Trying to attack hero with taunts on board
-	return false
+	# Targeting hero - check if ANY taunt exists (hero can't share a row)
+	var all_taunts := get_taunt_minions(defender_id)
+	if not all_taunts.is_empty():
+		return false  # Can't attack hero if any taunt exists
+	
+	return true
+
+
+## Check if a minion can be targeted by opponent's cards (for Hidden)
+func can_be_targeted_by_opponent(minion: Node, opponent_id: int) -> bool:
+	if minion.owner_id == opponent_id:
+		return false  # Can't target your own minions as opponent
+	
+	if minion.has_hidden:
+		return false  # Hidden minions cannot be targeted
+	
+	return true
 
 ## Scenes where deck builder key is disabled (during active gameplay)
 const BATTLE_SCENES: Array[String] = [
@@ -776,7 +867,6 @@ func _try_open_deck_builder() -> void:
 	
 	print("[GameManager] Opening deck builder (will return to: %s)" % scene_path)
 	get_tree().change_scene_to_file("res://scenes/deck_builder.tscn")
-
 
 ## Helper to check if we're in a battle
 func is_in_battle() -> bool:

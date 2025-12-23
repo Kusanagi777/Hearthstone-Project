@@ -34,17 +34,17 @@ var is_targetable: bool = false
 var _is_dragging: bool = false
 var _drag_offset: Vector2 = Vector2.ZERO
 
-## Keyword flags
-var has_charge: bool = false
-var has_rush: bool = false
-var has_taunt: bool = false
-var has_divine_shield: bool = false
-var has_windfury: bool = false
-var has_stealth: bool = false
-var has_lifesteal: bool = false
-var has_poisonous: bool = false
-var has_reborn: bool = false
-var has_snipe: bool = false  # Can attack from back row
+## Keyword flags - Using YOUR custom keyword names
+var has_charge: bool = false       # Can attack when summoned
+var has_rush: bool = false         # Can attack minions (not heroes) when summoned
+var has_taunt: bool = false        # Protects other minions in same row
+var has_shielded: bool = false     # Next damage instance is reduced to 0 (was Divine Shield)
+var has_aggressive: bool = false   # Can attack twice per turn (was Windfury)
+var has_hidden: bool = false       # Cannot be targeted by opponents (was Stealth)
+var has_drain: bool = false        # Damage dealt heals your hero (was Lifesteal)
+var has_lethal: bool = false       # Any damage destroys the target (was Poisonous)
+var has_persistent: bool = false   # Returns with 1 HP when destroyed (was Reborn)
+var has_snipe: bool = false        # Can attack from back row / target back row
 
 ## Base size constants
 const BASE_MINION_SIZE := Vector2(70, 85)
@@ -62,7 +62,7 @@ const BASE_FONT_SIZES := {
 @onready var taunt_border: Panel = $TauntBorder
 @onready var frame: Panel = $Frame
 @onready var highlight: ColorRect = $Frame/Highlight
-@onready var divine_shield_effect: ColorRect = $Frame/DivineShieldEffect
+@onready var divine_shield_effect: ColorRect = $Frame/DivineShieldEffect # Renamed visually but keeping node name for compatibility
 @onready var art_panel: Panel = $Frame/ArtPanel
 @onready var card_art: TextureRect = $Frame/ArtPanel/CardArt
 @onready var name_label: Label = $Frame/NameLabel
@@ -172,15 +172,16 @@ func _parse_keywords() -> void:
 	if not card_data:
 		return
 	
+	# Parse using YOUR custom keyword names
 	has_charge = card_data.has_keyword("Charge")
 	has_rush = card_data.has_keyword("Rush")
 	has_taunt = card_data.has_keyword("Taunt")
-	has_divine_shield = card_data.has_keyword("Divine Shield")
-	has_windfury = card_data.has_keyword("Windfury")
-	has_stealth = card_data.has_keyword("Stealth")
-	has_lifesteal = card_data.has_keyword("Lifesteal")
-	has_poisonous = card_data.has_keyword("Poisonous")
-	has_reborn = card_data.has_keyword("Reborn")
+	has_shielded = card_data.has_keyword("Shielded")
+	has_aggressive = card_data.has_keyword("Aggressive")
+	has_hidden = card_data.has_keyword("Hidden")
+	has_drain = card_data.has_keyword("Drain")
+	has_lethal = card_data.has_keyword("Lethal")
+	has_persistent = card_data.has_keyword("Persistent")
 	has_snipe = card_data.has_keyword("Snipe")
 	
 	if has_charge:
@@ -216,24 +217,34 @@ func _update_visuals() -> void:
 	if taunt_border:
 		taunt_border.visible = has_taunt
 	
-	# Divine shield effect
+	# Shielded effect (golden glow)
+# Shielded effect (golden glow)
 	if divine_shield_effect:
-		divine_shield_effect.visible = has_divine_shield
+		divine_shield_effect.visible = has_shielded
 	
 	# Sleeping icon for just-played minions
 	if sleeping_icon:
 		sleeping_icon.visible = just_played and not has_charge
 
+	# Hidden visual indicator (semi-transparent)
+	if has_hidden:
+		modulate.a = 0.6
+	else:
+		modulate.a = 1.0
 
 func can_attack() -> bool:
 	if just_played and not has_charge and not has_rush:
 		return false
-	if has_attacked and not has_windfury:
-		return false
-	if has_windfury and attacks_this_turn >= 2:
-		return false
-	return true
 
+# Already attacked check (Aggressive allows 2 attacks)
+	if has_aggressive:
+		if attacks_this_turn >= 2:
+			return false
+	else:
+		if has_attacked:
+			return false
+
+	return true
 
 func can_attack_from_row() -> bool:
 	# Back row minions can only attack if they have Snipe
@@ -243,8 +254,9 @@ func can_attack_from_row() -> bool:
 
 
 func take_damage(amount: int) -> void:
-	if has_divine_shield and amount > 0:
-		has_divine_shield = false
+	# Shielded absorbs the first damage instance
+	if has_shielded and amount > 0:
+		has_shielded = false
 		_update_visuals()
 		_play_damage_effect(0)  # Shield absorbed
 		return
@@ -265,6 +277,24 @@ func buff_stats(attack_bonus: int, health_bonus: int) -> void:
 	max_health += health_bonus
 	_update_visuals()
 
+func remove_shielded() -> void:
+	"""Called when Shielded is consumed by damage"""
+	has_shielded = false
+	_update_visuals()
+
+func break_hidden() -> void:
+	"""Called when Hidden minion attacks - reveals it"""
+	has_hidden = false
+	_update_visuals()
+
+func remove_persistent() -> void:
+	"""Called after Persistent triggers - prevents infinite loop"""
+	has_persistent = false
+	if card_data:
+		card_data.tags.erase("Persistent")
+
+func get_card_data() -> CardData:
+	return card_data
 
 func _play_damage_effect(amount: int) -> void:
 	if damage_label:
@@ -301,6 +331,14 @@ func _update_can_attack_visual() -> void:
 		if can_act:
 			highlight.color = Color(0.2, 1.0, 0.2, 0.3)
 
+func set_targetable(targetable: bool) -> void:
+	is_targetable = targetable
+	if highlight:
+		if targetable:
+			highlight.visible = true
+			highlight.color = Color(1.0, 0.3, 0.3, 0.4)
+		else:
+			_update_can_attack_visual()
 
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
@@ -330,13 +368,13 @@ func _start_drag(_global_pos: Vector2) -> void:
 
 
 func _update_drag(_global_pos: Vector2) -> void:
-	# Disabled physical movement - minion stays in slot
 	pass
 
 
-func _end_drag(_global_pos: Vector2) -> void:
-	# No cleanup needed since we didn't start a physical drag
-	pass
+func _end_drag(global_pos: Vector2) -> void:
+	if _is_dragging:
+		_is_dragging = false
+		minion_drag_ended.emit(self, global_pos)
 
 
 func _on_mouse_entered() -> void:
@@ -347,21 +385,6 @@ func _on_mouse_entered() -> void:
 func _on_mouse_exited() -> void:
 	if not _is_dragging:
 		modulate = Color.WHITE
-
-
-func get_card_data() -> CardData:
-	return card_data
-
-
-func set_targetable(targetable: bool) -> void:
-	is_targetable = targetable
-	if highlight:
-		highlight.visible = targetable or (can_attack_from_row() and GameManager.is_player_turn(owner_id))
-		if targetable:
-			highlight.color = Color(1, 0, 0, 0.3)
-		elif can_attack_from_row() and GameManager.is_player_turn(owner_id):
-			highlight.color = Color(0.2, 1.0, 0.2, 0.3)
-
 
 func play_death_animation() -> void:
 	var tween := create_tween()

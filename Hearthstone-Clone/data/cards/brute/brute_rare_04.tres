@@ -9,6 +9,6 @@ card_name = "Apex Scavenger"
 cost = 3
 attack = 1
 health = 4
-card_type = 0
 rarity = 1
 description = "Lethal. Rush."
+tags = Array[String](["LethaL", "Rush"])

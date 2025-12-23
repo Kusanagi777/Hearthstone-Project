@@ -46,8 +46,20 @@ enum Rarity {
 @export_multiline var description: String = ""
 
 ## Tags/Keywords for special abilities
-## "Charge", "Taunt", "Shielded", "Aggressive", "Drain",
-## "Lethal", "On-play", "On-death", "Rush", "Hidden", "Persistent"
+## YOUR CUSTOM KEYWORDS:
+## "Charge"      - Can attack when summoned
+## "Taunt"       - Protects other minions in the same row from being targeted
+## "Shielded"    - Next damage instance is reduced to 0
+## "Aggressive"  - Can attack twice per turn
+## "Drain"       - Damage dealt heals your hero
+## "Lethal"      - Any damage dealt destroys the target minion
+## "On-play"     - Effect triggers when summoned (Battlecry)
+## "On-death"    - Effect triggers when destroyed (Deathrattle)
+## "Rush"        - Can attack minions (not heroes) when summoned
+## "Hidden"      - Cannot be targeted by opponent's cards
+## "Persistent"  - Returns with 1 HP when destroyed, then loses this keyword
+## "Snipe"       - Can target/attack back row regardless of front row
+## "Draft"       - Player chooses from 3 cards, places result on field/hand/deck
 @export var tags: Array[String] = []
 
 ## Optional: Script path for custom card effects
@@ -80,10 +92,73 @@ func duplicate_for_play() -> CardData:
 ## Get formatted description with keyword highlighting
 func get_formatted_description() -> String:
 	var formatted := description
-	var keywords := ["Charge", "Taunt", "Shielded", "Aggressive", "Drain", 
-					 "Lethal", "On-play", "On-death", "Rush", "Hidden", "Persistent"]
+	
+	# YOUR CUSTOM KEYWORD LIST
+	var keywords := [
+		"Charge",      # Can attack when summoned
+		"Taunt",       # Protects row-mates from targeting
+		"Shielded",    # Absorbs first damage
+		"Aggressive",  # Attack twice per turn
+		"Drain",       # Heal on damage dealt
+		"Lethal",      # Instant kill on damage
+		"On-play",     # Battlecry effect
+		"On-death",    # Deathrattle effect
+		"Rush",        # Attack minions on summon
+		"Hidden",      # Cannot be targeted
+		"Persistent",  # Respawn with 1 HP
+		"Snipe",       # Target back row
+		"Draft",       # Choose from 3 cards
+	]
 	
 	for keyword in keywords:
 		formatted = formatted.replace(keyword, "[b]%s[/b]" % keyword)
 	
 	return formatted
+
+## Get list of all keywords this card has
+func get_keywords() -> Array[String]:
+	var found_keywords: Array[String] = []
+	var all_keywords := [
+		"Charge", "Taunt", "Shielded", "Aggressive", "Drain",
+		"Lethal", "On-play", "On-death", "Rush", "Hidden", 
+		"Persistent", "Snipe", "Draft"
+	]
+	
+	for keyword in all_keywords:
+		if keyword in tags:
+			found_keywords.append(keyword)
+	
+	return found_keywords
+
+
+## Get keyword tooltip/explanation
+static func get_keyword_tooltip(keyword: String) -> String:
+	match keyword:
+		"Charge":
+			return "Can attack like normal when summoned."
+		"Taunt":
+			return "Opposing minions cannot select another minion who shares a row with this minion as a target."
+		"Shielded":
+			return "The next instance of damage is reduced to 0."
+		"Aggressive":
+			return "This minion can attack twice in 1 turn."
+		"Drain":
+			return "Damage dealt is restored to the player who controls this card."
+		"Lethal":
+			return "Minions damaged by this card are destroyed."
+		"On-play":
+			return "When this minion is summoned, an effect takes place."
+		"On-death":
+			return "When this minion is destroyed, an effect takes place."
+		"Rush":
+			return "Can attack minions or locations the turn it is summoned, but cannot attack heroes."
+		"Hidden":
+			return "This card cannot be targeted by opponent's cards."
+		"Persistent":
+			return "When this card is destroyed, it immediately returns with 1 health and loses the Persistent keyword."
+		"Snipe":
+			return "This card can target cards in the back row regardless of other minions on the board."
+		"Draft":
+			return "The player is presented 3 cards from a pool and selects 1. The card may be summoned, added to hand, or shuffled into a deck."
+		_:
+			return ""

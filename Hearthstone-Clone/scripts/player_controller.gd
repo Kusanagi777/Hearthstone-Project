@@ -55,7 +55,7 @@ const REFERENCE_HEIGHT = 720.0
 func _ready() -> void:
 	if not is_inside_tree():
 		await ready
-	
+
 	call_deferred("_deferred_ready")
 
 
@@ -63,6 +63,7 @@ func _deferred_ready() -> void:
 	_connect_signals()
 	_apply_responsive_spacing()
 	GameManager.register_controller_ready()
+	GameManager.persistent_respawn_requested.connect(_on_persistent_respawn)
 	get_viewport().size_changed.connect(_on_viewport_size_changed)
 	print("[PlayerController %d] Ready, is_ai: %s" % [player_id, is_ai])
 
@@ -396,8 +397,6 @@ func _highlight_valid_targets() -> void:
 	if not _selected_attacker:
 		return
 	
-	var enemy_id = GameManager.get_opponent_id(player_id)
-	
 	# Determine if this minion is allowed to attack
 	var allowed_to_attack = _selected_attacker.can_attack()
 	# Back row restriction for highlighting
@@ -406,6 +405,11 @@ func _highlight_valid_targets() -> void:
 	
 	# 1. Highlight Enemies (ONLY if allowed to attack)
 	if allowed_to_attack:
+		# Get taunts in each row for row-based Taunt logic
+		var enemy_id = GameManager.get_opponent_id(player_id)
+		var front_row_taunts := GameManager.get_taunt_minions_in_row(enemy_id, true)
+		var back_row_taunts := GameManager.get_taunt_minions_in_row(enemy_id, false)
+	
 		# Check if enemy front row is empty
 		var front_row_empty = true
 		for lane in enemy_front_lanes:
@@ -421,9 +425,31 @@ func _highlight_valid_targets() -> void:
 					if child.has_method("set_targetable"):
 						# Front row always targetable, back row only if front is empty
 						var is_front_lane = lane in enemy_front_lanes
-						var can_target = is_front_lane or front_row_empty
-						child.set_targetable(can_target)
+						var can_target = false
 						
+						# Check if target has Hidden - cannot target Hidden minions
+						if child.has_hidden:
+							can_target = false
+						# Front row targeting logic
+						elif is_front_lane:
+							# If there are taunts in front row, can only target taunts
+							if front_row_taunts.is_empty():
+								can_target = true
+							else:
+								can_target = child in front_row_taunts
+						# Back row targeting logic
+						else:
+							# Can only target back row if front row is empty
+							if not front_row_empty:
+								can_target = false
+							# If there are taunts in back row, can only target taunts
+							elif back_row_taunts.is_empty():
+								can_target = true
+							else:
+								can_target = child in back_row_taunts
+						
+						child.set_targetable(can_target)
+		
 	# 2. Highlight Empty Friendly Lanes (Move Logic)
 	if (not _selected_attacker.has_attacked) and (not _selected_attacker.has_moved_this_turn):
 		for lane in front_lanes + back_lanes:
@@ -477,21 +503,105 @@ func _on_minion_targeted(minion_instance: Node) -> void:
 		print("[PlayerController %d] Minion cannot attack from back row!" % player_id)
 		_cancel_targeting()
 		return
+	
+	# Check Hidden - cannot target Hidden minions
+	if minion_instance.has_hidden:
+		print("[PlayerController %d] Cannot target Hidden minion!" % player_id)
+		_cancel_targeting()
+		return
+	
+	# Check row-based Taunt
+	if not GameManager.is_valid_attack_target(_selected_attacker.owner_id, minion_instance):
+		print("[PlayerController %d] Must target a Taunt minion in that row!" % player_id)
+		_cancel_targeting()
+		return
 	# --- VALIDATION END ---
 	
 	# Check if this is a valid target (front row check)
 	var is_front_row_target = minion_instance.is_front_row
 	var front_row_empty = _is_enemy_front_row_empty()
 	
-	if not is_front_row_target and not front_row_empty:
-		print("[PlayerController %d] Must target front row first!" % player_id)
-		return
+	# Snipe allows targeting back row regardless of front row
+	if not _selected_attacker.has_snipe:
+		if not is_front_row_target and not front_row_empty:
+			print("[PlayerController %d] Must target front row first!" % player_id)
+			return
 	
 	await _animate_attack(_selected_attacker, minion_instance)
 	GameManager.execute_combat(_selected_attacker, minion_instance)
 	_cancel_targeting()
 
+## Handle Persistent respawn - NEW function
+func _on_persistent_respawn(respawn_player_id: int, card: CardData, lane_index: int, is_front: bool) -> void:
+	if respawn_player_id != player_id:
+		return
+	print("[PlayerController %d] Respawning Persistent minion: %s" % [player_id, card.card_name])
 
+	# Get target lane
+	var target_lane: Control
+	if is_front:
+		target_lane = front_lanes[lane_index] if lane_index < front_lanes.size() else null
+	else:
+		target_lane = back_lanes[lane_index] if lane_index < back_lanes.size() else null
+	
+	if not target_lane:
+		return
+	
+	var slot = _get_minion_slot(target_lane)
+	if not slot:
+		return
+	
+	# Check if lane is still empty
+	if slot.get_child_count() > 0:
+		# Lane occupied, find alternative or skip
+		print("[PlayerController %d] Lane occupied, cannot respawn Persistent" % player_id)
+		return
+	
+	# Spawn the minion with 1 HP
+	var minion_instance: Node = minion_scene.instantiate()
+	slot.add_child(minion_instance)
+	minion_instance.initialize(card, player_id)
+	
+	# Override health to 1
+	minion_instance.current_health = 1
+	minion_instance.max_health = 1
+	minion_instance._update_visuals()
+	
+	# Set lane info
+	minion_instance.lane_index = lane_index
+	minion_instance.is_front_row = is_front
+	
+	# Respawned minion cannot attack this turn
+	minion_instance.just_played = true
+	
+	# Connect signals
+	if minion_instance.has_signal("minion_clicked"):
+		minion_instance.minion_clicked.connect(_on_minion_clicked)
+	if minion_instance.has_signal("minion_targeted"):
+		minion_instance.minion_targeted.connect(_on_minion_targeted)
+	if minion_instance.has_signal("minion_drag_started"):
+		minion_instance.minion_drag_started.connect(_on_minion_drag_started)
+	
+	GameManager.register_minion_on_board(player_id, minion_instance)
+	
+	# Play respawn animation
+	_animate_persistent_respawn(minion_instance)
+	
+func _animate_persistent_respawn(minion_instance: Node) -> void:
+	"""Special animation for Persistent respawn"""
+	minion_instance.modulate = Color(1, 1, 1, 0)
+	minion_instance.scale = Vector2(0.5, 0.5)
+	
+	var tween = create_tween()
+	tween.set_ease(Tween.EASE_OUT)
+	tween.set_trans(Tween.TRANS_BOUNCE)
+	tween.tween_property(minion_instance, "modulate:a", 1.0, 0.4)
+	tween.parallel().tween_property(minion_instance, "scale", Vector2.ONE, 0.5)
+	
+	# Flash golden to indicate Persistent triggered
+	tween.tween_property(minion_instance, "modulate", Color(1.2, 1.0, 0.5), 0.2)
+	tween.tween_property(minion_instance, "modulate", Color.WHITE, 0.2)
+	
 func _is_enemy_front_row_empty() -> bool:
 	for lane in enemy_front_lanes:
 		if not _is_lane_empty(lane):
@@ -785,18 +895,41 @@ func _ai_attack_with_minions() -> void:
 			await get_tree().create_timer(ai_action_delay).timeout
 
 
+## AI targeting - UPDATED for Hidden and row-based Taunt
 func _ai_choose_attack_target(attacker: Node) -> Node:
+	var enemy_id = GameManager.get_opponent_id(player_id)
 	var front_row_empty = _is_enemy_front_row_empty()
 	
+	# Get taunts in each row
+	var front_taunts := GameManager.get_taunt_minions_in_row(enemy_id, true)
+	var back_taunts := GameManager.get_taunt_minions_in_row(enemy_id, false)
+	
+	# Priority 1: Attack front row taunts first
+	for taunt in front_taunts:
+		if not taunt.has_hidden:  # Can't target Hidden
+			return taunt
+	
+	# Priority 2: Attack any front row minion
 	if not front_row_empty:
 		for lane in enemy_front_lanes:
 			var slot = _get_minion_slot(lane)
 			if slot and slot.get_child_count() > 0:
-				return slot.get_child(0)
-	else:
+				var minion = slot.get_child(0)
+				if not minion.has_hidden:  # Can't target Hidden
+					return minion
+	
+	# Priority 3: Attack back row taunts (if front is empty)
+	if front_row_empty:
+		for taunt in back_taunts:
+			if not taunt.has_hidden:
+				return taunt
+		
+		# Priority 4: Attack any back row minion
 		for lane in enemy_back_lanes:
 			var slot = _get_minion_slot(lane)
 			if slot and slot.get_child_count() > 0:
-				return slot.get_child(0)
+				var minion = slot.get_child(0)
+				if not minion.has_hidden:
+					return minion
 	
 	return null
