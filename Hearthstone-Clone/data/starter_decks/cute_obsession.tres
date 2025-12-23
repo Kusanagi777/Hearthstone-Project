@@ -7,5 +7,6 @@ script = ExtResource("1_5ddj7")
 id = "cute3"
 deck_name = "Obesession"
 description = "Strategy: Swarm/Synergy. Flood the board with cheap minions to generate Fans. Use Fans to pay for powerful card draw or buffs."
+class_id = "cute"
 card_ids = Array[String](["CUTE_01", "CUTE_01", "CUTE_02", "CUTE_02", "CUTE_05", "CUTE_05", "CUTE_03", "CUTE_03", "CUTE_03", "CUTE_04", "CUTE_04", "CUTE_04", "NEU_01", "NEU_01", "NEU_01"])
 metadata/_custom_type_script = "uid://b2ov1080u64vp"

@@ -4,4 +4,5 @@
 
 [resource]
 script = ExtResource("1_wg5ag")
+class_id = "cute"
 metadata/_custom_type_script = "uid://b2ov1080u64vp"

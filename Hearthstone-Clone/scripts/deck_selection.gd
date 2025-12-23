@@ -62,7 +62,6 @@ func _load_starter_decks() -> void:
 				# Convert to the dictionary format your UI expects
 				deck_options[deck_data.class_id].append({
 					"name": deck_data.deck_name,
-					"archetype": deck_data.archetype,
 					"description": deck_data.description,
 					"color": deck_data.theme_color,
 					"signature": deck_data.signature_card_id,
@@ -220,20 +219,6 @@ func _create_deck_button(deck_data: Dictionary, index: int) -> Control:
 	name_label.add_theme_font_size_override("font_size", 22)
 	name_label.add_theme_color_override("font_color", deck_data["color"])
 	content_vbox.add_child(name_label)
-	
-	# Archetype badge
-	var archetype_label = Label.new()
-	archetype_label.text = "[ %s ]" % deck_data["archetype"]
-	archetype_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	archetype_label.add_theme_font_size_override("font_size", 14)
-	var archetype_colors = {
-		"Aggro": Color(0.9, 0.4, 0.3),
-		"Control": Color(0.3, 0.5, 0.8),
-		"Midrange": Color(0.5, 0.7, 0.4),
-		"Combo": Color(0.7, 0.4, 0.8)
-	}
-	archetype_label.add_theme_color_override("font_color", archetype_colors.get(deck_data["archetype"], Color.WHITE))
-	content_vbox.add_child(archetype_label)
 	
 	# Separator
 	var sep = HSeparator.new()
@@ -402,7 +387,6 @@ func _update_description(index: int) -> void:
 	var text = "[center][color=#%s][b]%s[/b][/color] - [i]%s[/i]\n\n%s[/center]" % [
 		color_hex,
 		deck_data["name"],
-		deck_data["archetype"],
 		deck_data["description"]
 	]
 	

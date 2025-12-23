@@ -210,12 +210,12 @@ func _create_class_button(class_data: Dictionary, index: int) -> Control:
 	content_vbox.add_child(name_label)
 	
 	# Hero power
-	var power_label = Label.new()
-	power_label.text = class_data["hero_power"]
-	power_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	power_label.add_theme_font_size_override("font_size", 12)
-	power_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.65))
-	content_vbox.add_child(power_label)
+	#var power_label = Label.new()
+	#power_label.text = class_data["hero_power"]
+	#power_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	#power_label.add_theme_font_size_override("font_size", 12)
+	#power_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.65))
+	#content_vbox.add_child(power_label)
 	
 	# Health indicator
 	var health_label = Label.new()
@@ -343,21 +343,7 @@ func _set_button_selected(button: Control, selected: bool, class_color: Color) -
 func _update_description(index: int) -> void:
 	if index < 0 or index >= classes.size():
 		return
-	
-	var class_data: Dictionary = classes[index]
-	var color_hex = class_data["color"].to_html(false)
-	
-	var text = "[center][color=#%s][b]%s[/b][/color]\n\n%s\n\n[color=#888888]Hero Power: [/color][color=#%s]%s[/color] - %s[/center]" % [
-		color_hex,
-		class_data["name"],
-		class_data["description"],
-		color_hex,
-		class_data["hero_power"],
-		class_data["hero_power_desc"]
-	]
-	
-	if description_label:
-		description_label.text = text
+
 
 
 func _on_back_pressed() -> void:
