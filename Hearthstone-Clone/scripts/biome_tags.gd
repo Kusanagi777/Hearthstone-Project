@@ -1,6 +1,6 @@
-## Biome Tags Enum using Bitflags (Powers of 2)
-## Use with @export_flags() for multi-select in Inspector
-## Example: @export_flags("Arena:1", "Lab:2", "Stage:4", "Crypt:8", "Sanctuary:16") var biomes: int = 0
+# res://data/enums/biome_tags.gd
+## Biome Tags (Location Types) - Bitflag Constants
+## Use these constants when checking location biomes in code
 class_name BiomeTags
 
 # Bitflag values (powers of 2 for combining)
@@ -84,3 +84,31 @@ static func get_biome_from_name(biome_name: String) -> int:
 			return SANCTUARY
 		_:
 			return NONE
+
+
+## Count how many biomes are set
+static func count_biomes(biome_set: int) -> int:
+	var count := 0
+	if has_biome(biome_set, ARENA): count += 1
+	if has_biome(biome_set, LAB): count += 1
+	if has_biome(biome_set, STAGE): count += 1
+	if has_biome(biome_set, CRYPT): count += 1
+	if has_biome(biome_set, SANCTUARY): count += 1
+	return count
+
+
+## Get the matching minion tag for this biome (for synergy checks)
+static func get_synergy_minion_tag(biome: int) -> int:
+	match biome:
+		ARENA:
+			return MinionTags.BEAST
+		LAB:
+			return MinionTags.MECH
+		STAGE:
+			return MinionTags.IDOL
+		CRYPT:
+			return MinionTags.UNDEAD
+		SANCTUARY:
+			return MinionTags.DRAGON
+		_:
+			return MinionTags.NONE

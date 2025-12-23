@@ -1,6 +1,6 @@
-## Minion Tags Enum using Bitflags (Powers of 2)
-## Use with @export_flags() for multi-select in Inspector
-## Example: @export_flags("Beast:1", "Mech:2", "Idol:4", "Undead:8", "Dragon:16") var tags: int = 0
+# res://data/enums/minion_tags.gd
+## Minion Tags (Creature Types) - Bitflag Constants
+## Use these constants when checking minion types in code
 class_name MinionTags
 
 # Bitflag values (powers of 2 for combining)
@@ -84,3 +84,14 @@ static func get_tag_from_name(tag_name: String) -> int:
 			return DRAGON
 		_:
 			return NONE
+
+
+## Count how many tags are set
+static func count_tags(tag_set: int) -> int:
+	var count := 0
+	if has_tag(tag_set, BEAST): count += 1
+	if has_tag(tag_set, MECH): count += 1
+	if has_tag(tag_set, IDOL): count += 1
+	if has_tag(tag_set, UNDEAD): count += 1
+	if has_tag(tag_set, DRAGON): count += 1
+	return count
