@@ -1,172 +1,10 @@
 # res://scripts/deck_selection.gd
 extends Control
 
+const STARTER_DECKS_PATH := "res://data/starter_decks/"
+
 ## The selected class data (passed from class selection)
 var selected_class: Dictionary = {}
-
-## Deck options for each class
-var deck_options: Dictionary = {
-	"brute": [
-		{
-			"name": "Berserker's Fury",
-			"archetype": "Aggro",
-			"description": "All-out offense! Flood the board with cheap, high-attack minions and overwhelm your opponent before they can react.",
-			"color": Color(0.9, 0.3, 0.2),
-			"signature": "Raging Berserker",
-			"cards": ["bat", "bat", "wisp", "wisp", "brawler", "brawler", "wolf", "wolf", "warrior", "warrior", 
-					  "bat", "wisp", "brawler", "wolf", "warrior", "juggernaut", "juggernaut", "mage", "werewolf", "werewolf",
-					  "golem", "golem", "demon", "demon", "dragon", "bat", "brawler", "wolf", "warrior", "juggernaut"]
-		},
-		{
-			"name": "Iron Wall",
-			"archetype": "Control",
-			"description": "Outlast your enemies with high-health minions and efficient trades. Patience leads to victory.",
-			"color": Color(0.5, 0.5, 0.6),
-			"signature": "Stone Guardian",
-			"cards": ["brawler", "brawler", "wolf", "wolf", "warrior", "warrior", "juggernaut", "juggernaut", "werewolf", "werewolf",
-					  "golem", "golem", "golem", "demon", "demon", "dragon", "dragon", "brawler", "wolf", "warrior",
-					  "juggernaut", "werewolf", "golem", "demon", "dragon", "warrior", "juggernaut", "werewolf", "golem", "demon"]
-		},
-		{
-			"name": "Blood & Thunder",
-			"archetype": "Midrange",
-			"description": "A balanced approach with steady minion curve. Adapt to any situation with versatile threats.",
-			"color": Color(0.7, 0.2, 0.3),
-			"signature": "Thunder Champion",
-			"cards": ["wisp", "bat", "bat", "brawler", "brawler", "brawler", "wolf", "wolf", "warrior", "warrior",
-					  "juggernaut", "juggernaut", "mage", "mage", "werewolf", "werewolf", "golem", "demon", "dragon", "wisp",
-					  "bat", "wolf", "warrior", "juggernaut", "mage", "werewolf", "golem", "demon", "bat", "brawler"]
-		}
-	],
-	"technical": [
-		{
-			"name": "Mind Games",
-			"archetype": "Control",
-			"description": "Outthink your opponent with card advantage and efficient removal. Every card counts.",
-			"color": Color(0.2, 0.5, 0.9),
-			"signature": "Arcane Intellect",
-			"cards": ["mage", "mage", "mage", "werewolf", "werewolf", "golem", "golem", "demon", "demon", "dragon",
-					  "brawler", "brawler", "wolf", "wolf", "warrior", "warrior", "juggernaut", "juggernaut", "mage", "werewolf",
-					  "golem", "demon", "dragon", "wolf", "warrior", "juggernaut", "mage", "werewolf", "golem", "demon"]
-		},
-		{
-			"name": "Combo Master",
-			"archetype": "Combo",
-			"description": "Set up devastating combinations! Survive until you can unleash your game-winning plays.",
-			"color": Color(0.3, 0.3, 0.7),
-			"signature": "Puzzle Box",
-			"cards": ["wisp", "wisp", "bat", "bat", "brawler", "brawler", "mage", "mage", "mage", "werewolf",
-					  "werewolf", "golem", "golem", "demon", "demon", "dragon", "dragon", "wisp", "bat", "brawler",
-					  "wolf", "warrior", "juggernaut", "mage", "werewolf", "golem", "demon", "dragon", "wolf", "warrior"]
-		},
-		{
-			"name": "Tempo Tech",
-			"archetype": "Midrange",
-			"description": "Efficient plays at every mana cost. Always have the right answer at the right time.",
-			"color": Color(0.4, 0.6, 0.8),
-			"signature": "Gadgeteer",
-			"cards": ["bat", "bat", "brawler", "brawler", "wolf", "wolf", "warrior", "warrior", "mage", "mage",
-					  "juggernaut", "juggernaut", "werewolf", "werewolf", "golem", "golem", "demon", "bat", "brawler", "wolf",
-					  "warrior", "mage", "juggernaut", "werewolf", "golem", "demon", "dragon", "bat", "brawler", "wolf"]
-		}
-	],
-	"cute": [
-		{
-			"name": "Friendship Power",
-			"archetype": "Aggro",
-			"description": "Summon a swarm of adorable minions! They may be small, but together they're unstoppable!",
-			"color": Color(1.0, 0.5, 0.7),
-			"signature": "Best Friends",
-			"cards": ["wisp", "wisp", "wisp", "bat", "bat", "bat", "brawler", "brawler", "brawler", "wolf",
-					  "wolf", "wolf", "wisp", "bat", "brawler", "wolf", "warrior", "warrior", "wisp", "bat",
-					  "brawler", "wolf", "warrior", "juggernaut", "wisp", "bat", "brawler", "wolf", "warrior", "juggernaut"]
-		},
-		{
-			"name": "Cuddle Buddies",
-			"archetype": "Midrange",
-			"description": "Build an army of cute creatures that grow stronger together. Synergy is key!",
-			"color": Color(0.9, 0.7, 0.8),
-			"signature": "Cuddle Captain",
-			"cards": ["wisp", "wisp", "bat", "bat", "brawler", "brawler", "wolf", "wolf", "warrior", "warrior",
-					  "juggernaut", "juggernaut", "mage", "werewolf", "golem", "wisp", "bat", "brawler", "wolf", "warrior",
-					  "juggernaut", "mage", "werewolf", "golem", "demon", "wisp", "bat", "brawler", "wolf", "warrior"]
-		},
-		{
-			"name": "Protective Pals",
-			"archetype": "Control",
-			"description": "Shield your cute companions and outlast your foes. Defense with a smile!",
-			"color": Color(0.8, 0.9, 1.0),
-			"signature": "Guardian Angel",
-			"cards": ["brawler", "brawler", "wolf", "wolf", "warrior", "warrior", "juggernaut", "juggernaut", "werewolf", "werewolf",
-					  "golem", "golem", "demon", "demon", "dragon", "brawler", "wolf", "warrior", "juggernaut", "werewolf",
-					  "golem", "demon", "dragon", "wolf", "warrior", "juggernaut", "werewolf", "golem", "demon", "dragon"]
-		}
-	],
-	"other": [
-		{
-			"name": "Chaos Theory",
-			"archetype": "Combo",
-			"description": "Embrace randomness! Unpredictable effects that can swing the game in your favor... or not.",
-			"color": Color(0.6, 0.2, 0.7),
-			"signature": "Void Caller",
-			"cards": ["wisp", "bat", "brawler", "wolf", "warrior", "juggernaut", "mage", "werewolf", "golem", "demon",
-					  "dragon", "wisp", "bat", "brawler", "wolf", "warrior", "juggernaut", "mage", "werewolf", "golem",
-					  "demon", "dragon", "wisp", "bat", "brawler", "wolf", "warrior", "juggernaut", "mage", "werewolf"]
-		},
-		{
-			"name": "Beyond Reality",
-			"archetype": "Control",
-			"description": "Warp the rules of the game. Your opponent can never predict what comes next.",
-			"color": Color(0.4, 0.1, 0.5),
-			"signature": "Reality Bender",
-			"cards": ["mage", "mage", "werewolf", "werewolf", "golem", "golem", "demon", "demon", "dragon", "dragon",
-					  "warrior", "warrior", "juggernaut", "juggernaut", "mage", "werewolf", "golem", "demon", "dragon", "wolf",
-					  "warrior", "juggernaut", "mage", "werewolf", "golem", "demon", "dragon", "warrior", "juggernaut", "mage"]
-		},
-		{
-			"name": "Whispers",
-			"archetype": "Aggro",
-			"description": "Strike from the shadows with mysterious forces. Fast and unsettling.",
-			"color": Color(0.3, 0.15, 0.4),
-			"signature": "Shadow Whisperer",
-			"cards": ["wisp", "wisp", "bat", "bat", "bat", "brawler", "brawler", "wolf", "wolf", "warrior",
-					  "mage", "mage", "juggernaut", "werewolf", "wisp", "bat", "brawler", "wolf", "warrior", "mage",
-					  "juggernaut", "werewolf", "golem", "wisp", "bat", "brawler", "wolf", "warrior", "mage", "juggernaut"]
-		}
-	],
-	"ace": [
-		{
-			"name": "Jack of All Trades",
-			"archetype": "Midrange",
-			"description": "A perfectly balanced deck for any situation. Adapt and overcome!",
-			"color": Color(0.9, 0.8, 0.4),
-			"signature": "Versatile Victor",
-			"cards": ["wisp", "bat", "bat", "brawler", "brawler", "wolf", "wolf", "warrior", "warrior", "juggernaut",
-					  "juggernaut", "mage", "mage", "werewolf", "werewolf", "golem", "demon", "dragon", "bat", "brawler",
-					  "wolf", "warrior", "juggernaut", "mage", "werewolf", "golem", "demon", "dragon", "brawler", "wolf"]
-		},
-		{
-			"name": "Golden Standard",
-			"archetype": "Control",
-			"description": "Premium quality in every card. Expensive but devastatingly effective.",
-			"color": Color(1.0, 0.85, 0.3),
-			"signature": "Golden Champion",
-			"cards": ["warrior", "warrior", "juggernaut", "juggernaut", "mage", "mage", "werewolf", "werewolf", "golem", "golem",
-					  "demon", "demon", "dragon", "dragon", "warrior", "juggernaut", "mage", "werewolf", "golem", "demon",
-					  "dragon", "warrior", "juggernaut", "mage", "werewolf", "golem", "demon", "dragon", "golem", "demon"]
-		},
-		{
-			"name": "Rising Star",
-			"archetype": "Aggro",
-			"description": "Fast starts and early pressure. Prove your worth before they know what hit them!",
-			"color": Color(0.95, 0.7, 0.2),
-			"signature": "Shooting Star",
-			"cards": ["wisp", "wisp", "wisp", "bat", "bat", "bat", "brawler", "brawler", "brawler", "wolf",
-					  "wolf", "wolf", "warrior", "warrior", "warrior", "juggernaut", "mage", "wisp", "bat", "brawler",
-					  "wolf", "warrior", "juggernaut", "mage", "werewolf", "wisp", "bat", "brawler", "wolf", "warrior"]
-		}
-	]
-}
 
 ## Currently selected deck index
 var selected_index: int = -1
@@ -183,9 +21,12 @@ var deck_container: Control
 ## Reference resolution
 const REFERENCE_HEIGHT = 720.0
 
+## Loaded starter decks organized by class
+var deck_options: Dictionary = {}
 
 func _ready() -> void:
 	# Get selected class from GameManager (set by class selection screen)
+	_load_starter_decks()
 	if GameManager.has_meta("selected_class"):
 		selected_class = GameManager.get_meta("selected_class")
 	else:
@@ -195,10 +36,45 @@ func _ready() -> void:
 	_setup_ui()
 	_connect_signals()
 	_apply_styling()
-	
-	# Connect to viewport resize
 	get_viewport().size_changed.connect(_on_viewport_size_changed)
 
+func _load_starter_decks() -> void:
+	deck_options.clear()
+
+	var dir := DirAccess.open(STARTER_DECKS_PATH)
+	if not dir:
+		push_error("[DeckSelection] Could not open starter decks folder: %s" % STARTER_DECKS_PATH)
+		return
+
+	dir.list_dir_begin()
+	var file_name := dir.get_next()
+
+	while file_name != "":
+		if file_name.ends_with(".tres"):
+			var path := STARTER_DECKS_PATH + file_name
+			var deck_data := load(path) as StarterDeckData
+
+			if deck_data:
+				# Organize by class_id
+				if not deck_options.has(deck_data.class_id):
+					deck_options[deck_data.class_id] = []
+
+				# Convert to the dictionary format your UI expects
+				deck_options[deck_data.class_id].append({
+					"name": deck_data.deck_name,
+					"archetype": deck_data.archetype,
+					"description": deck_data.description,
+					"color": deck_data.theme_color,
+					"signature": deck_data.signature_card_id,
+					"cards": Array(deck_data.card_ids)  # Convert typed array
+				})
+
+				print("[DeckSelection] Loaded deck: %s for class %s" % [deck_data.deck_name, deck_data.class_id])
+
+		file_name = dir.get_next()
+
+	dir.list_dir_end()
+	print("[DeckSelection] Loaded %d classes with starter decks" % deck_options.size())
 
 func get_scale_factor() -> float:
 	var viewport_size = DisplayServer.window_get_size()
