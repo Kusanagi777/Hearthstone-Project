@@ -68,10 +68,15 @@ signal ritual_performed(player_id: int, card: CardData, sacrificed_minions: Arra
 ## Emitted when Fated bonus triggers
 signal fated_triggered(player_id: int, minion: Node, card: CardData)
 
+signal mulligan_started(player_id: int, cards: Array[CardData])
+signal mulligan_completed(player_id: int)
+signal all_mulligans_complete()
+
 ## Game phase enumeration
 enum GamePhase {
 	IDLE,
 	STARTING,
+	MULLIGAN,
 	DRAW,
 	PLAY,
 	COMBAT,
@@ -89,6 +94,10 @@ const STARTING_HAND_SIZE: int = 3
 const CARDS_DRAWN_PER_TURN: int = 1
 const MAX_BOARD_SIZE: int = 7
 const MAX_HAND_SIZE: int = 10
+
+## Mulligan constants
+const MULLIGAN_DRAW_COUNT: int = 10
+const MULLIGAN_KEEP_COUNT: int = 5
 
 ## Current game phase
 var current_phase: GamePhase = GamePhase.IDLE
@@ -114,6 +123,8 @@ var _deferred_draws: Array[Dictionary] = []
 ## Track controller readiness
 var _controllers_ready: bool = false
 
+var _mulligan_complete: Array[bool] = [false, false]
+var _mulligan_cards: Array[Array] = [[], []]  # Cards shown to each player
 
 func _ready() -> void:
 	_initialize_player_data()
@@ -216,37 +227,112 @@ func _shuffle_deck(player_id: int) -> void:
 		deck[j] = temp
 
 
-## Start a new game - should be called after scene is fully loaded
-func start_game() -> void:
-	if _game_initialized:
-		push_warning("Game already initialized")
+## Start the mulligan phase for both players
+func _start_mulligan_phase() -> void:
+	current_phase = GamePhase.MULLIGAN
+	print("[GameManager] Starting mulligan phase...")
+	
+	# Draw mulligan cards for both players (don't add to hand yet)
+	for player_id in range(2):
+		_draw_mulligan_cards(player_id)
+	
+	# Start with player one's mulligan
+	_request_mulligan(PLAYER_ONE)
+
+
+## Draw cards for mulligan selection (not added to hand yet)
+func _draw_mulligan_cards(player_id: int) -> void:
+	var deck: Array = players[player_id]["deck"]
+	var mulligan_pool: Array[CardData] = []
+	
+	# Draw up to MULLIGAN_DRAW_COUNT cards
+	var draw_count := mini(MULLIGAN_DRAW_COUNT, deck.size())
+	
+	for i in range(draw_count):
+		if deck.size() > 0:
+			var card: CardData = deck.pop_front()
+			mulligan_pool.append(card)
+	
+	_mulligan_cards[player_id] = mulligan_pool
+	print("[GameManager] Player %d drew %d cards for mulligan" % [player_id, mulligan_pool.size()])
+
+
+## Request mulligan selection from a player
+func _request_mulligan(player_id: int) -> void:
+	var cards: Array[CardData] = []
+	for card in _mulligan_cards[player_id]:
+		cards.append(card)
+	
+	print("[GameManager] Requesting mulligan from player %d with %d cards" % [player_id, cards.size()])
+	mulligan_started.emit(player_id, cards)
+
+
+## Called when a player completes their mulligan
+## kept_cards: The cards the player chose to keep
+## returned_cards: The cards being shuffled back into deck
+func complete_mulligan(player_id: int, kept_cards: Array[CardData], returned_cards: Array[CardData]) -> void:
+	if _mulligan_complete[player_id]:
+		push_warning("Player %d already completed mulligan" % player_id)
 		return
 	
-	_game_initialized = true
-	turn_number = 0
-	active_player = PLAYER_ONE
-	current_phase = GamePhase.STARTING
-	_first_turn = [true, true]
+	print("[GameManager] Player %d completing mulligan - keeping %d, returning %d" % [player_id, kept_cards.size(), returned_cards.size()])
 	
-	print("[GameManager] Game starting...")
-	game_started.emit()
+	# Add kept cards to hand
+	for card in kept_cards:
+		players[player_id]["hand"].append(card)
+		# Track for Fated keyword
+		players[player_id]["cards_drawn_this_turn"].append(card.id)
 	
-	await get_tree().process_frame
-	await get_tree().process_frame
+	# Return unkept cards to deck and shuffle
+	for card in returned_cards:
+		players[player_id]["deck"].append(card)
 	
-	# Draw starting hands
-	for player_id in range(2):
-		print("[GameManager] Drawing starting hand for player %d" % player_id)
-		for i in range(STARTING_HAND_SIZE):
-			_draw_card_animated(player_id)
-			await get_tree().create_timer(0.15).timeout
-		
-		# Player 2 gets "The Coin" - extra card
-		if player_id == PLAYER_TWO:
-			_draw_card_animated(player_id)
+	_shuffle_deck(player_id)
+	
+	_mulligan_complete[player_id] = true
+	mulligan_completed.emit(player_id)
+	
+	# Emit card_drawn signals for kept cards (for UI updates)
+	if _controllers_ready:
+		for card in kept_cards:
+			card_drawn.emit(player_id, card)
+	else:
+		for card in kept_cards:
+			_deferred_draws.append({"player_id": player_id, "card_data": card})
+	
+	# Check if both players are done
+	if _mulligan_complete[PLAYER_ONE] and _mulligan_complete[PLAYER_TWO]:
+		_finish_mulligan_phase()
+	elif not _mulligan_complete[PLAYER_TWO]:
+		# Start player two's mulligan
+		_request_mulligan(PLAYER_TWO)
+
+
+## Finish mulligan phase and start the game
+func _finish_mulligan_phase() -> void:
+	print("[GameManager] All mulligans complete, starting game...")
+	all_mulligans_complete.emit()
 	
 	await get_tree().create_timer(0.5).timeout
 	_start_turn(PLAYER_ONE)
+
+
+## Get mulligan cards for a player (used by UI)
+func get_mulligan_cards(player_id: int) -> Array[CardData]:
+	var cards: Array[CardData] = []
+	for card in _mulligan_cards[player_id]:
+		cards.append(card)
+	return cards
+
+
+## Check if a player has completed their mulligan
+func is_mulligan_complete(player_id: int) -> bool:
+	return _mulligan_complete[player_id]
+
+
+## Check if we're in mulligan phase
+func is_in_mulligan() -> bool:
+	return current_phase == GamePhase.MULLIGAN
 
 
 func _draw_card_animated(player_id: int) -> CardData:
@@ -562,12 +648,15 @@ func perform_ritual(player_id: int, card: CardData, sacrifices: Array[Node]) -> 
 ## COMBAT SYSTEM
 ## ============================================================================
 
-## Execute combat between two minions
+## Execute combat between two minions - UPDATED WITH HERO POWER EFFECTS
 func execute_combat(attacker: Node, defender: Node) -> void:
 	if not is_instance_valid(attacker) or not is_instance_valid(defender):
 		return
 	
 	current_phase = GamePhase.COMBAT
+	
+	# === HERO POWER PRE-COMBAT EFFECTS ===
+	HeroPowerEffects.apply_pre_combat_effects(attacker, defender)
 	
 	var attacker_attack: int = attacker.current_attack
 	var defender_attack: int = defender.current_attack
@@ -632,6 +721,10 @@ func execute_combat(attacker: Node, defender: Node) -> void:
 	# --- UPDATE ATTACK TRACKING ---
 	attacker.has_attacked = true
 	attacker.attacks_this_turn += 1
+	
+	# === HERO POWER POST-COMBAT EFFECTS (Beast Fury kill check) ===
+	if defender.current_health <= 0:
+		HeroPowerEffects.check_beast_fury_kill(attacker, defender, attacker.owner_id)
 	
 	var attacker_data := {
 		"node": attacker,

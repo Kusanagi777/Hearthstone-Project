@@ -2,6 +2,7 @@
 extends Control
 
 const HERO_POWER_SCENE = preload("res://scenes/hero_power_button.tscn")
+const MULLIGAN_SCREEN_SCENE = preload("res://scenes/mulligan_screen.tscn")
 
 ## Player controllers
 @export var player_one: player_controller
@@ -47,6 +48,8 @@ var player_back_lanes: Array[Control] = []
 var enemy_front_lanes: Array[Control] = []
 var enemy_back_lanes: Array[Control] = []
 
+## Mulligan Screen
+var mulligan_screen: Control = null
 
 func _ready() -> void:
 	visible = true
@@ -76,8 +79,62 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(_on_viewport_size_changed)
 	
 	await get_tree().create_timer(0.5).timeout
+	_setup_mulligan_screen()
 	_setup_test_game()
 
+func _setup_mulligan_screen() -> void:
+	# Create mulligan screen (either from scene or script)
+	if MULLIGAN_SCREEN_SCENE:
+		mulligan_screen = MULLIGAN_SCREEN_SCENE.instantiate()
+	else:
+		# Create programmatically if no scene
+		mulligan_screen = Control.new()
+		mulligan_screen.set_script(load("res://scripts/mulligan_screen.gd"))
+	
+	mulligan_screen.visible = false
+	mulligan_screen.z_index = 100  # Ensure it's on top
+	
+	# Add to a CanvasLayer so it's always visible above game elements
+	var mulligan_layer := CanvasLayer.new()
+	mulligan_layer.layer = 10
+	mulligan_layer.add_child(mulligan_screen)
+	add_child(mulligan_layer)
+	
+	# Connect mulligan completion signal
+	mulligan_screen.mulligan_complete.connect(_on_mulligan_complete)
+	
+func _on_mulligan_started(player_id: int, cards: Array[CardData]) -> void:
+	print("[MainGame] Mulligan started for player %d with %d cards" % [player_id, cards.size()])
+	
+	# Determine if this player is AI
+	var is_ai: bool = false
+	if player_id == 1 and player_two and player_two.is_ai:
+		is_ai = true
+	
+	# Start the mulligan UI
+	mulligan_screen.start_mulligan(
+		player_id,
+		cards,
+		is_ai,
+		_on_mulligan_selection_made
+	)
+
+
+func _on_mulligan_selection_made(player_id: int, kept_cards: Array[CardData], returned_cards: Array[CardData]) -> void:
+	# Tell GameManager the mulligan is complete
+	GameManager.complete_mulligan(player_id, kept_cards, returned_cards)
+
+
+func _on_mulligan_complete(player_id: int, kept_cards: Array[CardData]) -> void:
+	print("[MainGame] Player %d mulligan complete, kept %d cards" % [player_id, kept_cards.size()])
+
+
+func _on_all_mulligans_complete() -> void:
+	print("[MainGame] All mulligans complete, game starting!")
+	# Hide mulligan screen if still visible
+	if mulligan_screen:
+		mulligan_screen.visible = false
+		
 func _setup_hero_power() -> void:
 	# Only set up for Player 1 (us) for now
 	if not player_hero_area:
@@ -381,6 +438,11 @@ func _connect_signals() -> void:
 	GameManager.card_drawn.connect(_on_card_drawn)
 	GameManager.entity_died.connect(_on_entity_died)
 	GameManager.resource_changed.connect(_on_resource_changed)
+	# Mulligan signals
+	if not GameManager.mulligan_started.is_connected(_on_mulligan_started):
+		GameManager.mulligan_started.connect(_on_mulligan_started)
+	if not GameManager.all_mulligans_complete.is_connected(_on_all_mulligans_complete):
+		GameManager.all_mulligans_complete.connect(_on_all_mulligans_complete)
 	
 	if turn_button:
 		if not turn_button.pressed.is_connected(_on_turn_button_pressed):
