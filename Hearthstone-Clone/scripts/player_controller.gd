@@ -1,3 +1,4 @@
+# res://scripts/player_controller.gd
 class_name player_controller
 extends Node
 
@@ -40,68 +41,33 @@ var _selected_attacker: Node = null
 ## Is AI controlled?
 @export var is_ai: bool = false
 
-## AI delays
-@export var ai_think_delay: float = 0.8
-@export var ai_action_delay: float = 0.5
+## AI action delay (seconds between actions)
+@export var ai_action_delay: float = 0.8
 
-## AI thinking state
-var _ai_thinking: bool = false
-
-## Constants
-const BASE_CARD_SPACING = -30.0
-const REFERENCE_HEIGHT = 720.0
+## Reference resolution for scaling
+const REFERENCE_HEIGHT := 720.0
 
 
 func _ready() -> void:
-	if not is_inside_tree():
-		await ready
-
+	GameManager.turn_started.connect(_on_turn_started)
+	GameManager.card_drawn.connect(_on_card_drawn)
+	GameManager.persistent_respawn_requested.connect(_on_persistent_respawn)
+	GameManager.huddle_promoted.connect(_on_huddle_promoted)
+	GameManager.fated_triggered.connect(_on_fated_triggered)
+	GameManager.bully_triggered.connect(_on_bully_triggered)
+	GameManager.overclock_triggered.connect(_on_overclock_triggered)
+	GameManager.ritual_performed.connect(_on_ritual_performed)
+	
 	call_deferred("_deferred_ready")
 
 
 func _deferred_ready() -> void:
-	_connect_signals()
-	_apply_responsive_spacing()
 	GameManager.register_controller_ready()
-	GameManager.persistent_respawn_requested.connect(_on_persistent_respawn)
-	get_viewport().size_changed.connect(_on_viewport_size_changed)
-	print("[PlayerController %d] Ready, is_ai: %s" % [player_id, is_ai])
 
 
 func get_scale_factor() -> float:
-	var viewport_size = DisplayServer.window_get_size()
-	return clampf(viewport_size.y / REFERENCE_HEIGHT, 1.0, 3.0)
-
-
-func _apply_responsive_spacing() -> void:
-	var scale_factor = get_scale_factor()
-	if hand_container and hand_container is HBoxContainer:
-		hand_container.add_theme_constant_override("separation", int(BASE_CARD_SPACING * scale_factor))
-
-
-func _on_viewport_size_changed() -> void:
-	_apply_responsive_spacing()
-
-
-func _connect_signals() -> void:
-	if GameManager.card_drawn.is_connected(_on_card_drawn):
-		GameManager.card_drawn.disconnect(_on_card_drawn)
-	if GameManager.turn_started.is_connected(_on_turn_started):
-		GameManager.turn_started.disconnect(_on_turn_started)
-	if GameManager.turn_ended.is_connected(_on_turn_ended):
-		GameManager.turn_ended.disconnect(_on_turn_ended)
-	if GameManager.game_started.is_connected(_on_game_started):
-		GameManager.game_started.disconnect(_on_game_started)
-	
-	GameManager.card_drawn.connect(_on_card_drawn)
-	GameManager.turn_started.connect(_on_turn_started)
-	GameManager.turn_ended.connect(_on_turn_ended)
-	GameManager.game_started.connect(_on_game_started)
-
-
-func _on_game_started() -> void:
-	_clear_hand()
-	_clear_board()
+	var viewport_height: float = get_viewport().get_visible_rect().size.y
+	return clampf(viewport_height / REFERENCE_HEIGHT, 0.8, 2.0)
 
 
 func _on_turn_started(turn_player_id: int) -> void:
@@ -109,91 +75,53 @@ func _on_turn_started(turn_player_id: int) -> void:
 		_enable_hand_interaction(true)
 		_refresh_board_minions()
 		
-		if is_ai and not _ai_thinking:
-			_start_ai_turn()
+		if is_ai:
+			call_deferred("_ai_take_turn")
 	else:
 		_enable_hand_interaction(false)
-
-
-func _on_turn_ended(turn_player_id: int) -> void:
-	if turn_player_id == player_id:
-		_enable_hand_interaction(false)
-		_cancel_targeting()
-		_ai_thinking = false
 
 
 func _on_card_drawn(draw_player_id: int, card: CardData) -> void:
 	if draw_player_id != player_id:
 		return
-	_add_card_to_hand(card)
-
-
-func _add_card_to_hand(card: CardData) -> void:
-	if not card_ui_scene or not hand_container:
+	
+	if not hand_container:
 		return
 	
-	var card_ui_instance: Control = card_ui_scene.instantiate()
-	hand_container.add_child(card_ui_instance)
-	card_ui_instance.initialize(card, player_id)
+	if not card_ui_scene:
+		push_warning("No card UI scene set for player %d" % player_id)
+		return
 	
-	if card_ui_instance.has_signal("card_clicked"):
-		card_ui_instance.card_clicked.connect(_on_card_clicked)
+	var card_ui_instance = card_ui_scene.instantiate()
+	hand_container.add_child(card_ui_instance)
+	
+	if card_ui_instance.has_method("initialize"):
+		card_ui_instance.initialize(card, player_id)
+	
 	if card_ui_instance.has_signal("card_drag_started"):
 		card_ui_instance.card_drag_started.connect(_on_card_drag_started)
 	if card_ui_instance.has_signal("card_drag_ended"):
 		card_ui_instance.card_drag_ended.connect(_on_card_drag_ended)
-	
-	_animate_card_draw(card_ui_instance)
-
-
-func _animate_card_draw(card_ui_instance: Control) -> void:
-	card_ui_instance.modulate.a = 0.0
-	card_ui_instance.scale = Vector2(0.5, 0.5)
-	
-	await get_tree().process_frame
-	await get_tree().process_frame
-	
-	var end_pos = card_ui_instance.position
-	var start_x = 500.0 * get_scale_factor()
-	card_ui_instance.position = Vector2(start_x, 0)
-	
-	var tween = create_tween()
-	tween.set_parallel(true)
-	tween.set_ease(Tween.EASE_OUT)
-	tween.set_trans(Tween.TRANS_BACK)
-	tween.tween_property(card_ui_instance, "modulate:a", 1.0, 0.3)
-	tween.tween_property(card_ui_instance, "scale", Vector2.ONE, 0.4)
-	tween.tween_property(card_ui_instance, "position", end_pos, 0.4)
-
-
-func _on_card_clicked(card_ui_instance: Control) -> void:
-	if is_ai or not GameManager.is_player_turn(player_id):
-		return
-	card_selected.emit(card_ui_instance)
 
 
 func _on_card_drag_started(card_ui_instance: Control) -> void:
-	if is_ai or not GameManager.is_player_turn(player_id):
+	if is_ai:
 		return
 	_dragged_card = card_ui_instance
 
 
-func _on_card_drag_ended(card_ui_instance: Control, global_pos: Vector2) -> void:
-	if not _dragged_card:
+func _on_card_drag_ended(dragged: Control, global_pos: Vector2) -> void:
+	if is_ai or not dragged:
 		return
 	
-	var dragged = _dragged_card
 	_dragged_card = null
 	
-	# Check which lane was dropped on
-	var target_lane = _get_lane_at_position(global_pos)
-	
-	if target_lane != null:
+	var target_lane := _get_lane_at_position(global_pos)
+	if target_lane:
 		var lane_index: int = target_lane.get_meta("lane_index", -1)
 		var is_front: bool = target_lane.get_meta("is_front", true)
 		var is_player_lane: bool = target_lane.get_meta("is_player", true)
 		
-		# Can only play to own lanes
 		if is_player_lane == (player_id == 0):
 			var success = await _try_play_card_to_lane(dragged, lane_index, is_front)
 			if not success and is_instance_valid(dragged):
@@ -205,7 +133,6 @@ func _on_card_drag_ended(card_ui_instance: Control, global_pos: Vector2) -> void
 
 
 func _get_lane_at_position(global_pos: Vector2) -> Control:
-	# Check all player lanes
 	for lane in front_lanes + back_lanes:
 		if lane and lane.get_global_rect().has_point(global_pos):
 			return lane
@@ -213,7 +140,6 @@ func _get_lane_at_position(global_pos: Vector2) -> Control:
 
 
 func _get_minion_slot(lane: Control) -> Control:
-	# Get the MinionSlot child of a lane panel
 	return lane.find_child("MinionSlot", false, false) as Control
 
 
@@ -224,10 +150,25 @@ func _is_lane_empty(lane: Control) -> bool:
 	return true
 
 
+## Get the minion in a lane (if any)
+func _get_minion_in_lane(lane: Control) -> Node:
+	var slot = _get_minion_slot(lane)
+	if slot and slot.get_child_count() > 0:
+		for child in slot.get_children():
+			if child is Minion:
+				return child
+	return null
+
+
+## Check if a lane can accept a Huddle minion
+func _can_place_huddle_in_lane(lane: Control) -> bool:
+	var existing := _get_minion_in_lane(lane)
+	return existing != null  # Huddle requires an existing minion
+
+
 func _try_play_card_to_lane(card_ui_instance: Control, lane_index: int, is_front: bool) -> bool:
 	var card: CardData = card_ui_instance.card_data
 	
-	# Get the target lane
 	var target_lane: Control
 	if is_front:
 		if lane_index < front_lanes.size():
@@ -239,17 +180,22 @@ func _try_play_card_to_lane(card_ui_instance: Control, lane_index: int, is_front
 	if not target_lane:
 		return false
 	
-	# Check if lane is empty
-	if not _is_lane_empty(target_lane):
-		print("[PlayerController %d] Lane %d %s is occupied" % [player_id, lane_index, "front" if is_front else "back"])
-		return false
+	var existing_minion := _get_minion_in_lane(target_lane)
+	var lane_empty := existing_minion == null
+	
+	# Check if lane is occupied
+	if not lane_empty:
+		# Only Huddle minions can be played in occupied lanes
+		if not card.has_keyword("Huddle"):
+			print("[PlayerController %d] Lane %d %s is occupied (need Huddle)" % [player_id, lane_index, "front" if is_front else "back"])
+			return false
 	
 	if GameManager.try_play_card(player_id, card, null):
 		_animate_card_play(card_ui_instance)
 		
 		if card.card_type == CardData.CardType.MINION:
 			await get_tree().create_timer(0.2).timeout
-			_spawn_minion_in_lane(card, lane_index, is_front)
+			_spawn_minion_in_lane(card, lane_index, is_front, existing_minion)
 		
 		return true
 	
@@ -269,7 +215,8 @@ func _animate_card_play(card_ui_instance: Control) -> void:
 	tween.tween_callback(card_ui_instance.queue_free).set_delay(0.2)
 
 
-func _spawn_minion_in_lane(card: CardData, lane_index: int, is_front: bool) -> Node:
+## Spawn a minion in a lane - UPDATED for Huddle support
+func _spawn_minion_in_lane(card: CardData, lane_index: int, is_front: bool, existing_minion: Node = null) -> Node:
 	if not minion_scene:
 		return null
 	
@@ -287,10 +234,37 @@ func _spawn_minion_in_lane(card: CardData, lane_index: int, is_front: bool) -> N
 		return null
 	
 	var minion_instance: Node = minion_scene.instantiate()
+	
+	# === HUDDLE LOGIC ===
+	if existing_minion and card.has_keyword("Huddle"):
+		# Attach as huddle minion instead of placing normally
+		slot.add_child(minion_instance)
+		minion_instance.initialize(card, player_id)
+		minion_instance.lane_index = lane_index
+		minion_instance.is_front_row = is_front
+		
+		# Attach to existing minion
+		existing_minion.attach_huddle(minion_instance)
+		
+		# Register on board (but it's hidden behind the front minion)
+		GameManager.register_minion_on_board(player_id, minion_instance)
+		
+		# Trigger Huddle buff effect
+		_trigger_huddle_effect(minion_instance, existing_minion)
+		
+		# Check Fated bonus
+		if GameManager.check_fated_bonus(player_id, card, minion_instance):
+			_trigger_fated_effect(minion_instance)
+		
+		print("[PlayerController %d] Huddle minion %s attached behind %s" % [
+			player_id, card.card_name, existing_minion.card_data.card_name
+		])
+		
+		return minion_instance
+	
+	# === NORMAL PLACEMENT ===
 	slot.add_child(minion_instance)
 	minion_instance.initialize(card, player_id)
-	
-	# Set lane info on minion
 	minion_instance.lane_index = lane_index
 	minion_instance.is_front_row = is_front
 	
@@ -304,12 +278,41 @@ func _spawn_minion_in_lane(card: CardData, lane_index: int, is_front: bool) -> N
 	
 	GameManager.register_minion_on_board(player_id, minion_instance)
 	
-	if card.has_keyword("Battlecry"):
+	# Trigger Battlecry / On-play
+	if card.has_keyword("Battlecry") or card.has_keyword("On-play"):
 		GameManager.trigger_battlecry(player_id, minion_instance, card, null)
+	
+	# Check Fated bonus
+	if GameManager.check_fated_bonus(player_id, card, minion_instance):
+		_trigger_fated_effect(minion_instance)
 	
 	_animate_minion_summon(minion_instance)
 	
 	return minion_instance
+
+
+func _trigger_huddle_effect(huddle_minion: Node, front_minion: Node) -> void:
+	# Default huddle buff - can be customized via effect scripts
+	# For now, give front minion +1/+1 as a simple buff
+	print("[PlayerController %d] Huddle effect: buffing %s" % [player_id, front_minion.card_data.card_name])
+	front_minion.buff_stats(1, 1)
+	
+	# Visual feedback
+	var tween := create_tween()
+	tween.tween_property(front_minion, "modulate", Color(0.5, 1.0, 0.5), 0.15)
+	tween.tween_property(front_minion, "modulate", Color.WHITE, 0.15)
+
+
+func _trigger_fated_effect(minion_instance: Node) -> void:
+	# Visual indicator for Fated triggering
+	if minion_instance.has_method("play_fated_effect"):
+		minion_instance.play_fated_effect()
+	else:
+		var tween := create_tween()
+		tween.tween_property(minion_instance, "modulate", Color(1.0, 0.8, 1.2), 0.2)
+		tween.tween_property(minion_instance, "modulate", Color.WHITE, 0.2)
+	
+	print("[PlayerController %d] Fated bonus activated for %s!" % [player_id, minion_instance.card_data.card_name])
 
 
 func _animate_minion_summon(minion_instance: Node) -> void:
@@ -323,27 +326,142 @@ func _animate_minion_summon(minion_instance: Node) -> void:
 	tween.parallel().tween_property(minion_instance, "scale", Vector2.ONE, 0.4)
 
 
-## Logic to decide if we start arrow interaction
+## ============================================================================
+## NEW KEYWORD SIGNAL HANDLERS
+## ============================================================================
+
+func _on_persistent_respawn(respawn_player_id: int, card: CardData, lane_index: int, is_front: bool) -> void:
+	if respawn_player_id != player_id:
+		return
+	print("[PlayerController %d] Respawning Persistent minion: %s" % [player_id, card.card_name])
+	
+	var target_lane: Control
+	if is_front:
+		target_lane = front_lanes[lane_index] if lane_index < front_lanes.size() else null
+	else:
+		target_lane = back_lanes[lane_index] if lane_index < back_lanes.size() else null
+	
+	if not target_lane:
+		return
+	
+	var slot = _get_minion_slot(target_lane)
+	if not slot:
+		return
+	
+	if slot.get_child_count() > 0:
+		print("[PlayerController %d] Lane occupied, cannot respawn Persistent" % player_id)
+		return
+	
+	var minion_instance: Node = minion_scene.instantiate()
+	slot.add_child(minion_instance)
+	minion_instance.initialize(card, player_id)
+	
+	# Override health to 1
+	minion_instance.current_health = 1
+	minion_instance.max_health = 1
+	minion_instance._update_visuals()
+	
+	minion_instance.lane_index = lane_index
+	minion_instance.is_front_row = is_front
+	minion_instance.just_played = true
+	
+	if minion_instance.has_signal("minion_clicked"):
+		minion_instance.minion_clicked.connect(_on_minion_clicked)
+	if minion_instance.has_signal("minion_targeted"):
+		minion_instance.minion_targeted.connect(_on_minion_targeted)
+	if minion_instance.has_signal("minion_drag_started"):
+		minion_instance.minion_drag_started.connect(_on_minion_drag_started)
+	
+	GameManager.register_minion_on_board(player_id, minion_instance)
+	_animate_persistent_respawn(minion_instance)
+
+
+func _animate_persistent_respawn(minion_instance: Node) -> void:
+	minion_instance.modulate = Color(1, 1, 1, 0)
+	minion_instance.scale = Vector2(0.5, 0.5)
+	
+	var tween = create_tween()
+	tween.set_ease(Tween.EASE_OUT)
+	tween.set_trans(Tween.TRANS_BOUNCE)
+	tween.tween_property(minion_instance, "modulate:a", 1.0, 0.4)
+	tween.parallel().tween_property(minion_instance, "scale", Vector2.ONE, 0.5)
+	
+	# Flash golden to indicate Persistent triggered
+	tween.tween_property(minion_instance, "modulate", Color(1.2, 1.0, 0.5), 0.2)
+	tween.tween_property(minion_instance, "modulate", Color.WHITE, 0.2)
+
+
+func _on_huddle_promoted(promoted_player_id: int, promoted_minion: Node, lane_index: int, is_front: bool) -> void:
+	if promoted_player_id != player_id:
+		return
+	
+	print("[PlayerController %d] Huddle minion promoted: %s" % [player_id, promoted_minion.card_data.card_name])
+	
+	# Connect signals to the newly promoted minion
+	if promoted_minion.has_signal("minion_clicked") and not promoted_minion.minion_clicked.is_connected(_on_minion_clicked):
+		promoted_minion.minion_clicked.connect(_on_minion_clicked)
+	if promoted_minion.has_signal("minion_targeted") and not promoted_minion.minion_targeted.is_connected(_on_minion_targeted):
+		promoted_minion.minion_targeted.connect(_on_minion_targeted)
+	if promoted_minion.has_signal("minion_drag_started") and not promoted_minion.minion_drag_started.is_connected(_on_minion_drag_started):
+		promoted_minion.minion_drag_started.connect(_on_minion_drag_started)
+	
+	# Animate promotion
+	var tween := create_tween()
+	tween.tween_property(promoted_minion, "modulate", Color(0.5, 1.0, 0.8), 0.2)
+	tween.tween_property(promoted_minion, "modulate", Color.WHITE, 0.2)
+
+
+func _on_fated_triggered(fated_player_id: int, minion: Node, card: CardData) -> void:
+	if fated_player_id != player_id:
+		return
+	# Effect is handled by card's effect script, this is just for visual/audio feedback
+	print("[PlayerController %d] Fated triggered for %s" % [player_id, card.card_name])
+
+
+func _on_bully_triggered(bully_player_id: int, attacker: Node, defender: Node) -> void:
+	if bully_player_id != player_id:
+		return
+	# Bully bonus effect handled by card's effect script
+	print("[PlayerController %d] Bully triggered: %s attacking %s" % [
+		player_id, attacker.card_data.card_name, defender.card_data.card_name
+	])
+
+
+func _on_overclock_triggered(overclock_player_id: int, minion: Node, battery_spent: int) -> void:
+	if overclock_player_id != player_id:
+		return
+	print("[PlayerController %d] Overclock activated: %s spent %d Battery" % [
+		player_id, minion.card_data.card_name, battery_spent
+	])
+
+
+func _on_ritual_performed(ritual_player_id: int, card: CardData, sacrificed: Array) -> void:
+	if ritual_player_id != player_id:
+		return
+	print("[PlayerController %d] Ritual performed for %s, sacrificed %d minions" % [
+		player_id, card.card_name, sacrificed.size()
+	])
+
+
+## ============================================================================
+## TARGETING AND COMBAT
+## ============================================================================
+
 func _try_start_arrow_interaction(minion_instance: Node) -> void:
 	if is_ai or not GameManager.is_player_turn(player_id):
 		return
-
+	
 	if minion_instance.owner_id != player_id:
-		# If we clicked an enemy while we already have a selected attacker, resolve attack
 		if _selected_attacker:
 			_on_minion_targeted(minion_instance)
 		return
-
-	# 1. Check if we can attack
+	
 	var can_attack_enemies = minion_instance.can_attack()
-	# Back row restriction: Cannot attack unless has Snipe
 	if not minion_instance.is_front_row and not minion_instance.has_snipe:
 		can_attack_enemies = false
-
-	# 2. Check if we can move (hasn't attacked and hasn't moved yet)
+	
 	var can_move_lanes = (not minion_instance.has_attacked) and (not minion_instance.has_moved_this_turn)
-
-	# If we can do EITHER, start the arrow
+	
 	if can_attack_enemies or can_move_lanes:
 		_selected_attacker = minion_instance
 		_start_targeting(minion_instance)
@@ -361,7 +479,108 @@ func _on_minion_drag_started(minion_instance: Node) -> void:
 
 
 func _on_minion_drag_ended(_minion_instance: Node, _global_pos: Vector2) -> void:
-	pass 
+	pass
+
+
+func _on_minion_targeted(minion_instance: Node) -> void:
+	if not _selected_attacker:
+		return
+	
+	if minion_instance.owner_id == player_id:
+		_cancel_targeting()
+		return
+	
+	var allowed_to_attack = _selected_attacker.can_attack()
+	if not _selected_attacker.is_front_row and not _selected_attacker.has_snipe:
+		allowed_to_attack = false
+	
+	if not allowed_to_attack:
+		print("[PlayerController %d] Minion cannot attack from back row!" % player_id)
+		_cancel_targeting()
+		return
+	
+	if minion_instance.has_hidden:
+		print("[PlayerController %d] Cannot target Hidden minion!" % player_id)
+		_cancel_targeting()
+		return
+	
+	if not GameManager.is_valid_attack_target(_selected_attacker.owner_id, minion_instance):
+		print("[PlayerController %d] Must target a Taunt minion in that row!" % player_id)
+		_cancel_targeting()
+		return
+	
+	var is_front_row_target = minion_instance.is_front_row
+	var front_row_empty = _is_enemy_front_row_empty()
+	
+	if not _selected_attacker.has_snipe:
+		if not is_front_row_target and not front_row_empty:
+			print("[PlayerController %d] Must target front row first!" % player_id)
+			return
+	
+	await _animate_attack(_selected_attacker, minion_instance)
+	GameManager.execute_combat(_selected_attacker, minion_instance)
+	_cancel_targeting()
+
+
+func target_enemy_hero() -> void:
+	if not _selected_attacker:
+		return
+	
+	var allowed_to_attack = _selected_attacker.can_attack()
+	if not _selected_attacker.is_front_row and not _selected_attacker.has_snipe:
+		allowed_to_attack = false
+	
+	if not allowed_to_attack:
+		print("[PlayerController %d] Minion cannot attack from back row!" % player_id)
+		_cancel_targeting()
+		return
+	
+	if not _is_enemy_front_row_empty():
+		print("[PlayerController %d] Cannot attack hero - front row not empty!" % player_id)
+		_cancel_targeting()
+		return
+	
+	if _selected_attacker.has_rush and _selected_attacker.just_played:
+		print("[PlayerController %d] Rush minions cannot attack heroes on first turn!" % player_id)
+		_cancel_targeting()
+		return
+	
+	var enemy_id = GameManager.get_opponent_id(player_id)
+	await _animate_attack_hero(_selected_attacker)
+	GameManager.attack_hero(_selected_attacker, enemy_id)
+	_cancel_targeting()
+
+
+func _is_enemy_front_row_empty() -> bool:
+	for lane in enemy_front_lanes:
+		if not _is_lane_empty(lane):
+			return false
+	return true
+
+
+func _animate_attack(attacker: Node, target: Node) -> void:
+	var original_pos: Vector2 = attacker.global_position
+	var target_global_pos: Vector2 = target.global_position
+	var bump_pos: Vector2 = original_pos.lerp(target_global_pos, 0.7)
+	
+	var tween = create_tween()
+	tween.tween_property(attacker, "global_position", bump_pos, 0.15).set_ease(Tween.EASE_IN)
+	tween.tween_property(attacker, "global_position", original_pos, 0.15).set_ease(Tween.EASE_OUT)
+	
+	await tween.finished
+
+
+func _animate_attack_hero(attacker: Node) -> void:
+	var original_pos: Vector2 = attacker.global_position
+	var bump_direction = Vector2.UP if player_id == 0 else Vector2.DOWN
+	var bump_distance = 100.0 * get_scale_factor()
+	var bump_pos: Vector2 = original_pos + bump_direction * bump_distance
+	
+	var tween = create_tween()
+	tween.tween_property(attacker, "global_position", bump_pos, 0.15).set_ease(Tween.EASE_IN)
+	tween.tween_property(attacker, "global_position", original_pos, 0.15).set_ease(Tween.EASE_OUT)
+	
+	await tween.finished
 
 
 func _move_minion_to_row(minion_instance: Node, to_front: bool, lane_index: int) -> void:
@@ -389,73 +608,41 @@ func _move_minion_to_row(minion_instance: Node, to_front: bool, lane_index: int)
 	])
 
 
-func _return_minion_to_slot(_minion_instance: Node) -> void:
-	pass
-
-
 func _highlight_valid_targets() -> void:
 	if not _selected_attacker:
 		return
 	
-	# Determine if this minion is allowed to attack
 	var allowed_to_attack = _selected_attacker.can_attack()
-	# Back row restriction for highlighting
 	if not _selected_attacker.is_front_row and not _selected_attacker.has_snipe:
 		allowed_to_attack = false
 	
-	# 1. Highlight Enemies (ONLY if allowed to attack)
+	# Highlight enemy minions
 	if allowed_to_attack:
-		# Get taunts in each row for row-based Taunt logic
-		var enemy_id = GameManager.get_opponent_id(player_id)
-		var front_row_taunts := GameManager.get_taunt_minions_in_row(enemy_id, true)
-		var back_row_taunts := GameManager.get_taunt_minions_in_row(enemy_id, false)
-	
-		# Check if enemy front row is empty
-		var front_row_empty = true
-		for lane in enemy_front_lanes:
-			if not _is_lane_empty(lane):
-				front_row_empty = false
-				break
+		var front_row_empty = _is_enemy_front_row_empty()
 		
-		# Highlight enemy minions
-		for lane in enemy_front_lanes + enemy_back_lanes:
+		for lane in enemy_front_lanes:
 			var slot = _get_minion_slot(lane)
 			if slot:
 				for child in slot.get_children():
 					if child.has_method("set_targetable"):
-						# Front row always targetable, back row only if front is empty
-						var is_front_lane = lane in enemy_front_lanes
-						var can_target = false
-						
-						# Check if target has Hidden - cannot target Hidden minions
-						if child.has_hidden:
-							can_target = false
-						# Front row targeting logic
-						elif is_front_lane:
-							# If there are taunts in front row, can only target taunts
-							if front_row_taunts.is_empty():
-								can_target = true
-							else:
-								can_target = child in front_row_taunts
-						# Back row targeting logic
-						else:
-							# Can only target back row if front row is empty
-							if not front_row_empty:
-								can_target = false
-							# If there are taunts in back row, can only target taunts
-							elif back_row_taunts.is_empty():
-								can_target = true
-							else:
-								can_target = child in back_row_taunts
-						
-						child.set_targetable(can_target)
+						var is_valid = GameManager.is_valid_attack_target(_selected_attacker.owner_id, child)
+						child.set_targetable(is_valid)
 		
-	# 2. Highlight Empty Friendly Lanes (Move Logic)
+		# Highlight back row if Snipe OR front row empty
+		if _selected_attacker.has_snipe or front_row_empty:
+			for lane in enemy_back_lanes:
+				var slot = _get_minion_slot(lane)
+				if slot:
+					for child in slot.get_children():
+						if child.has_method("set_targetable"):
+							var is_valid = GameManager.is_valid_attack_target(_selected_attacker.owner_id, child)
+							child.set_targetable(is_valid)
+	
+	# Highlight empty friendly lanes for movement
 	if (not _selected_attacker.has_attacked) and (not _selected_attacker.has_moved_this_turn):
 		for lane in front_lanes + back_lanes:
 			if _is_lane_empty(lane):
-				# Optional: Add visual highlight for friendly empty lanes here
-				pass
+				pass  # Optional: Add visual highlight
 
 
 func _clear_target_highlights() -> void:
@@ -485,187 +672,38 @@ func _cancel_targeting() -> void:
 	_selected_attacker = null
 
 
-func _on_minion_targeted(minion_instance: Node) -> void:
-	if not _selected_attacker:
+func _check_attack_target(global_pos: Vector2) -> void:
+	# Check Enemy Hero
+	if enemy_hero_area and enemy_hero_area.get_global_rect().has_point(global_pos):
+		target_enemy_hero()
 		return
 	
-	if minion_instance.owner_id == player_id:
-		_cancel_targeting()
-		return
+	# Check Enemy Minions
+	for lane in enemy_front_lanes + enemy_back_lanes:
+		var slot = _get_minion_slot(lane)
+		if slot:
+			for child in slot.get_children():
+				if child is Control and child.get_global_rect().has_point(global_pos):
+					_on_minion_targeted(child)
+					return
 	
-	# --- VALIDATION START ---
-	# Check if attacker is actually allowed to attack (Back Row Check)
-	var allowed_to_attack = _selected_attacker.can_attack()
-	if not _selected_attacker.is_front_row and not _selected_attacker.has_snipe:
-		allowed_to_attack = false
+	# Check Friendly Lanes (For Movement)
+	if _selected_attacker and (not _selected_attacker.has_moved_this_turn) and (not _selected_attacker.has_attacked):
+		for lane in front_lanes + back_lanes:
+			if lane and lane.get_global_rect().has_point(global_pos):
+				if _is_lane_empty(lane):
+					var lane_index = lane.get_meta("lane_index", -1)
+					var is_front = lane.get_meta("is_front", false)
+					
+					if lane_index == _selected_attacker.lane_index and is_front == _selected_attacker.is_front_row:
+						pass
+					else:
+						_move_minion_to_row(_selected_attacker, is_front, lane_index)
+					
+					_cancel_targeting()
+					return
 	
-	if not allowed_to_attack:
-		print("[PlayerController %d] Minion cannot attack from back row!" % player_id)
-		_cancel_targeting()
-		return
-	
-	# Check Hidden - cannot target Hidden minions
-	if minion_instance.has_hidden:
-		print("[PlayerController %d] Cannot target Hidden minion!" % player_id)
-		_cancel_targeting()
-		return
-	
-	# Check row-based Taunt
-	if not GameManager.is_valid_attack_target(_selected_attacker.owner_id, minion_instance):
-		print("[PlayerController %d] Must target a Taunt minion in that row!" % player_id)
-		_cancel_targeting()
-		return
-	# --- VALIDATION END ---
-	
-	# Check if this is a valid target (front row check)
-	var is_front_row_target = minion_instance.is_front_row
-	var front_row_empty = _is_enemy_front_row_empty()
-	
-	# Snipe allows targeting back row regardless of front row
-	if not _selected_attacker.has_snipe:
-		if not is_front_row_target and not front_row_empty:
-			print("[PlayerController %d] Must target front row first!" % player_id)
-			return
-	
-	await _animate_attack(_selected_attacker, minion_instance)
-	GameManager.execute_combat(_selected_attacker, minion_instance)
 	_cancel_targeting()
-
-## Handle Persistent respawn - NEW function
-func _on_persistent_respawn(respawn_player_id: int, card: CardData, lane_index: int, is_front: bool) -> void:
-	if respawn_player_id != player_id:
-		return
-	print("[PlayerController %d] Respawning Persistent minion: %s" % [player_id, card.card_name])
-
-	# Get target lane
-	var target_lane: Control
-	if is_front:
-		target_lane = front_lanes[lane_index] if lane_index < front_lanes.size() else null
-	else:
-		target_lane = back_lanes[lane_index] if lane_index < back_lanes.size() else null
-	
-	if not target_lane:
-		return
-	
-	var slot = _get_minion_slot(target_lane)
-	if not slot:
-		return
-	
-	# Check if lane is still empty
-	if slot.get_child_count() > 0:
-		# Lane occupied, find alternative or skip
-		print("[PlayerController %d] Lane occupied, cannot respawn Persistent" % player_id)
-		return
-	
-	# Spawn the minion with 1 HP
-	var minion_instance: Node = minion_scene.instantiate()
-	slot.add_child(minion_instance)
-	minion_instance.initialize(card, player_id)
-	
-	# Override health to 1
-	minion_instance.current_health = 1
-	minion_instance.max_health = 1
-	minion_instance._update_visuals()
-	
-	# Set lane info
-	minion_instance.lane_index = lane_index
-	minion_instance.is_front_row = is_front
-	
-	# Respawned minion cannot attack this turn
-	minion_instance.just_played = true
-	
-	# Connect signals
-	if minion_instance.has_signal("minion_clicked"):
-		minion_instance.minion_clicked.connect(_on_minion_clicked)
-	if minion_instance.has_signal("minion_targeted"):
-		minion_instance.minion_targeted.connect(_on_minion_targeted)
-	if minion_instance.has_signal("minion_drag_started"):
-		minion_instance.minion_drag_started.connect(_on_minion_drag_started)
-	
-	GameManager.register_minion_on_board(player_id, minion_instance)
-	
-	# Play respawn animation
-	_animate_persistent_respawn(minion_instance)
-	
-func _animate_persistent_respawn(minion_instance: Node) -> void:
-	"""Special animation for Persistent respawn"""
-	minion_instance.modulate = Color(1, 1, 1, 0)
-	minion_instance.scale = Vector2(0.5, 0.5)
-	
-	var tween = create_tween()
-	tween.set_ease(Tween.EASE_OUT)
-	tween.set_trans(Tween.TRANS_BOUNCE)
-	tween.tween_property(minion_instance, "modulate:a", 1.0, 0.4)
-	tween.parallel().tween_property(minion_instance, "scale", Vector2.ONE, 0.5)
-	
-	# Flash golden to indicate Persistent triggered
-	tween.tween_property(minion_instance, "modulate", Color(1.2, 1.0, 0.5), 0.2)
-	tween.tween_property(minion_instance, "modulate", Color.WHITE, 0.2)
-	
-func _is_enemy_front_row_empty() -> bool:
-	for lane in enemy_front_lanes:
-		if not _is_lane_empty(lane):
-			return false
-	return true
-
-
-func _animate_attack(attacker: Node, target: Node) -> void:
-	var original_pos: Vector2 = attacker.global_position
-	var target_global_pos: Vector2 = target.global_position
-	var bump_pos: Vector2 = original_pos.lerp(target_global_pos, 0.7)
-	
-	var tween = create_tween()
-	tween.tween_property(attacker, "global_position", bump_pos, 0.15).set_ease(Tween.EASE_IN)
-	tween.tween_property(attacker, "global_position", original_pos, 0.15).set_ease(Tween.EASE_OUT)
-	
-	await tween.finished
-
-
-func target_enemy_hero() -> void:
-	if not _selected_attacker:
-		return
-	
-	# --- VALIDATION START ---
-	# Check if attacker is allowed to attack (Back Row Check)
-	var allowed_to_attack = _selected_attacker.can_attack()
-	if not _selected_attacker.is_front_row and not _selected_attacker.has_snipe:
-		allowed_to_attack = false
-		
-	if not allowed_to_attack:
-		print("[PlayerController %d] Minion cannot attack from back row!" % player_id)
-		_cancel_targeting()
-		return
-	# --- VALIDATION END ---
-	
-	# Can only attack hero if front row is empty
-	if not _is_enemy_front_row_empty():
-		print("[PlayerController %d] Cannot attack hero - front row not empty!" % player_id)
-		_cancel_targeting()
-		return
-	
-	# Rush minions can't attack hero on first turn
-	if _selected_attacker.has_rush and _selected_attacker.just_played:
-		print("[PlayerController %d] Rush minions cannot attack heroes on first turn!" % player_id)
-		_cancel_targeting()
-		return
-	
-	var enemy_id = GameManager.get_opponent_id(player_id)
-	await _animate_attack_hero(_selected_attacker)
-	GameManager.attack_hero(_selected_attacker, enemy_id)
-	_cancel_targeting()
-
-
-func _animate_attack_hero(attacker: Node) -> void:
-	var original_pos: Vector2 = attacker.global_position
-	var bump_direction = Vector2.UP if player_id == 0 else Vector2.DOWN
-	var bump_distance = 100.0 * get_scale_factor()
-	var bump_pos: Vector2 = original_pos + bump_direction * bump_distance
-	
-	var tween = create_tween()
-	tween.tween_property(attacker, "global_position", bump_pos, 0.15).set_ease(Tween.EASE_IN)
-	tween.tween_property(attacker, "global_position", original_pos, 0.15).set_ease(Tween.EASE_OUT)
-	
-	await tween.finished
 
 
 func _input(event: InputEvent) -> void:
@@ -678,44 +716,6 @@ func _input(event: InputEvent) -> void:
 		elif event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
 			if _selected_attacker and _targeting_arrow:
 				_check_attack_target(event.global_position)
-
-
-func _check_attack_target(global_pos: Vector2) -> void:
-	# 1. Check Enemy Hero
-	if enemy_hero_area and enemy_hero_area.get_global_rect().has_point(global_pos):
-		target_enemy_hero()
-		return
-	
-	# 2. Check Enemy Minions
-	for lane in enemy_front_lanes + enemy_back_lanes:
-		var slot = _get_minion_slot(lane)
-		if slot:
-			for child in slot.get_children():
-				if child is Control and child.get_global_rect().has_point(global_pos):
-					_on_minion_targeted(child)
-					return
-					
-	# 3. Check Friendly Lanes (For Movement)
-	# Only valid if we haven't moved or attacked yet
-	if _selected_attacker and (not _selected_attacker.has_moved_this_turn) and (not _selected_attacker.has_attacked):
-		# Look through our own lanes
-		for lane in front_lanes + back_lanes:
-			if lane and lane.get_global_rect().has_point(global_pos):
-				# Is it empty?
-				if _is_lane_empty(lane):
-					var lane_index = lane.get_meta("lane_index", -1)
-					var is_front = lane.get_meta("is_front", false)
-					
-					# Don't move to the exact same spot we are currently in
-					if lane_index == _selected_attacker.lane_index and is_front == _selected_attacker.is_front_row:
-						pass # Same spot
-					else:
-						_move_minion_to_row(_selected_attacker, is_front, lane_index)
-					
-					_cancel_targeting()
-					return
-	
-	_cancel_targeting()
 
 
 func _process(_delta: float) -> void:
@@ -761,72 +761,37 @@ func request_end_turn() -> void:
 		GameManager.end_turn()
 
 
-## Get all minions on our board
 func _get_all_minions() -> Array[Node]:
 	var minions: Array[Node] = []
 	for lane in front_lanes + back_lanes:
 		var slot = _get_minion_slot(lane)
 		if slot:
 			for child in slot.get_children():
-				minions.append(child)
+				if child is Minion:
+					minions.append(child)
 	return minions
 
 
-## Get all enemy minions
-func _get_all_enemy_minions() -> Array[Node]:
-	var minions: Array[Node] = []
-	for lane in enemy_front_lanes + enemy_back_lanes:
-		var slot = _get_minion_slot(lane)
-		if slot:
-			for child in slot.get_children():
-				minions.append(child)
-	return minions
+## ============================================================================
+## AI LOGIC
+## ============================================================================
 
-
-# =============================================================================
-# AI LOGIC
-# =============================================================================
-
-func _start_ai_turn() -> void:
-	if not is_ai:
+func _ai_take_turn() -> void:
+	if not is_ai or not GameManager.is_player_turn(player_id):
 		return
 	
-	_ai_thinking = true
-	await get_tree().create_timer(ai_think_delay).timeout
-	await _ai_execute_turn()
-
-
-func _ai_execute_turn() -> void:
-	if not GameManager.is_player_turn(player_id):
-		_ai_thinking = false
-		return
-	
-	await _ai_play_cards()
-	await _ai_attack_with_minions()
 	await get_tree().create_timer(ai_action_delay).timeout
 	
-	if GameManager.is_player_turn(player_id):
-		request_end_turn()
-	
-	_ai_thinking = false
-
-
-func _ai_play_cards() -> void:
+	# Play cards
 	var played_card = true
-	
 	while played_card and GameManager.is_player_turn(player_id):
 		played_card = false
 		
-		var playable_cards = _ai_get_playable_cards()
-		if playable_cards.is_empty():
+		var playable = _ai_get_playable_cards()
+		if playable.is_empty():
 			break
 		
-		playable_cards.sort_custom(func(a, b): return a.card_data.cost > b.card_data.cost)
-		
-		for card_ui_instance in playable_cards:
-			if not GameManager.is_player_turn(player_id):
-				break
-			
+		for card_ui_instance in playable:
 			var card: CardData = card_ui_instance.card_data
 			
 			if GameManager.get_current_mana(player_id) < card.cost:
@@ -841,6 +806,14 @@ func _ai_play_cards() -> void:
 					played_card = true
 					await get_tree().create_timer(ai_action_delay).timeout
 					break
+	
+	await get_tree().create_timer(ai_action_delay).timeout
+	_ai_attack_with_minions()
+	
+	await get_tree().create_timer(ai_action_delay).timeout
+	
+	if GameManager.is_player_turn(player_id):
+		request_end_turn()
 
 
 func _ai_get_playable_cards() -> Array:
@@ -888,48 +861,41 @@ func _ai_attack_with_minions() -> void:
 					var enemy_id = GameManager.get_opponent_id(player_id)
 					await _animate_attack_hero(attacker)
 					GameManager.attack_hero(attacker, enemy_id)
-					await get_tree().create_timer(ai_action_delay).timeout
+					await get_tree().create_timer(ai_action_delay * 0.5).timeout
 		else:
 			await _animate_attack(attacker, target)
 			GameManager.execute_combat(attacker, target)
-			await get_tree().create_timer(ai_action_delay).timeout
+			await get_tree().create_timer(ai_action_delay * 0.5).timeout
 
 
-## AI targeting - UPDATED for Hidden and row-based Taunt
 func _ai_choose_attack_target(attacker: Node) -> Node:
-	var enemy_id = GameManager.get_opponent_id(player_id)
-	var front_row_empty = _is_enemy_front_row_empty()
+	var valid_targets: Array[Node] = []
 	
-	# Get taunts in each row
-	var front_taunts := GameManager.get_taunt_minions_in_row(enemy_id, true)
-	var back_taunts := GameManager.get_taunt_minions_in_row(enemy_id, false)
+	# Check front row first
+	for lane in enemy_front_lanes:
+		var slot = _get_minion_slot(lane)
+		if slot:
+			for child in slot.get_children():
+				if child is Minion and GameManager.is_valid_attack_target(attacker.owner_id, child):
+					valid_targets.append(child)
 	
-	# Priority 1: Attack front row taunts first
-	for taunt in front_taunts:
-		if not taunt.has_hidden:  # Can't target Hidden
-			return taunt
-	
-	# Priority 2: Attack any front row minion
-	if not front_row_empty:
-		for lane in enemy_front_lanes:
-			var slot = _get_minion_slot(lane)
-			if slot and slot.get_child_count() > 0:
-				var minion = slot.get_child(0)
-				if not minion.has_hidden:  # Can't target Hidden
-					return minion
-	
-	# Priority 3: Attack back row taunts (if front is empty)
-	if front_row_empty:
-		for taunt in back_taunts:
-			if not taunt.has_hidden:
-				return taunt
-		
-		# Priority 4: Attack any back row minion
+	# Check back row if we have Snipe or front is empty
+	if attacker.has_snipe or _is_enemy_front_row_empty():
 		for lane in enemy_back_lanes:
 			var slot = _get_minion_slot(lane)
-			if slot and slot.get_child_count() > 0:
-				var minion = slot.get_child(0)
-				if not minion.has_hidden:
-					return minion
+			if slot:
+				for child in slot.get_children():
+					if child is Minion and GameManager.is_valid_attack_target(attacker.owner_id, child):
+						valid_targets.append(child)
 	
-	return null
+	if valid_targets.is_empty():
+		return null
+	
+	# Prioritize taunt minions, then lowest health
+	var taunts = valid_targets.filter(func(m): return m.has_taunt)
+	if not taunts.is_empty():
+		taunts.sort_custom(func(a, b): return a.current_health < b.current_health)
+		return taunts[0]
+	
+	valid_targets.sort_custom(func(a, b): return a.current_health < b.current_health)
+	return valid_targets[0]

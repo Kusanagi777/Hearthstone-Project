@@ -46,6 +46,22 @@ var has_lethal: bool = false       # Any damage destroys the target (was Poisono
 var has_persistent: bool = false   # Returns with 1 HP when destroyed (was Reborn)
 var has_snipe: bool = false        # Can attack from back row / target back row
 
+## NEW KEYWORD FLAGS
+var has_bully: bool = false        # Bonus effect when attacking weaker targets
+var has_overclock: bool = false    # Spend Battery for bonus effect
+var overclock_cost: int = 0        # Battery cost for Overclock
+var has_huddle: bool = false       # Can be played in occupied space
+var has_ritual: bool = false       # Sacrifice minions for bonus
+var ritual_cost: int = 0           # Number of minions to sacrifice
+var has_fated: bool = false        # Bonus if played turn it was drawn
+
+## Fated tracking - set by GameManager when drawn
+var drawn_this_turn: bool = false
+
+## Huddle system
+var huddled_minion: Node = null    # Reference to minion huddled behind this one
+var is_huddled: bool = false       # True if this minion is huddled behind another
+
 ## Base size constants
 const BASE_MINION_SIZE := Vector2(70, 85)
 const REFERENCE_HEIGHT := 720.0
@@ -62,50 +78,49 @@ const BASE_FONT_SIZES := {
 @onready var taunt_border: Panel = $TauntBorder
 @onready var frame: Panel = $Frame
 @onready var highlight: ColorRect = $Frame/Highlight
-@onready var divine_shield_effect: ColorRect = $Frame/DivineShieldEffect # Renamed visually but keeping node name for compatibility
+@onready var divine_shield_effect: ColorRect = $Frame/DivineShieldEffect
 @onready var art_panel: Panel = $Frame/ArtPanel
 @onready var card_art: TextureRect = $Frame/ArtPanel/CardArt
 @onready var name_label: Label = $Frame/NameLabel
-@onready var sleeping_icon: Label = $Frame/SleepingIcon
 @onready var attack_icon: Panel = $Frame/AttackIcon
 @onready var attack_label: Label = $Frame/AttackIcon/AttackLabel
 @onready var health_icon: Panel = $Frame/HealthIcon
 @onready var health_label: Label = $Frame/HealthIcon/HealthLabel
 @onready var damage_label: Label = $Frame/DamageLabel
+@onready var sleeping_icon: Label = $Frame/SleepingIcon
+@onready var row_indicator: Label = $Frame/RowIndicator
+
+## Optional: Huddle indicator
+var huddle_indicator: ColorRect = null
 
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
-	
-	_apply_responsive_size()
-	_apply_default_styles()
-	
-	if highlight:
-		highlight.visible = false
-	if damage_label:
-		damage_label.visible = false
-	
-	mouse_entered.connect(_on_mouse_entered)
-	mouse_exited.connect(_on_mouse_exited)
+	_apply_default_styling()
+	_setup_responsive_scaling()
+	_setup_huddle_indicator()
 	
 	GameManager.turn_started.connect(_on_turn_started)
-	get_viewport().size_changed.connect(_on_viewport_size_changed)
 
 
-static func get_scale_factor() -> float:
-	var viewport_size := DisplayServer.window_get_size()
-	return clampf(viewport_size.y / REFERENCE_HEIGHT, 1.0, 3.0)
+func _setup_huddle_indicator() -> void:
+	# Create a small indicator showing this minion has someone huddled
+	huddle_indicator = ColorRect.new()
+	huddle_indicator.color = Color(0.4, 0.8, 0.4, 0.5)
+	huddle_indicator.custom_minimum_size = Vector2(10, 10)
+	huddle_indicator.visible = false
+	huddle_indicator.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(huddle_indicator)
+	huddle_indicator.position = Vector2(5, 5)
 
 
-func _apply_responsive_size() -> void:
-	var scale_factor := get_scale_factor()
-	var scaled_size := BASE_MINION_SIZE * scale_factor
-	custom_minimum_size = scaled_size
-	size = scaled_size
-	_apply_scaled_fonts(scale_factor)
-
-
-func _apply_scaled_fonts(scale_factor: float) -> void:
+func _setup_responsive_scaling() -> void:
+	var viewport_height := get_viewport_rect().size.y
+	var scale_factor := viewport_height / REFERENCE_HEIGHT
+	scale_factor = clampf(scale_factor, 0.8, 2.0)
+	
+	custom_minimum_size = BASE_MINION_SIZE * scale_factor
+	
 	if name_label:
 		name_label.add_theme_font_size_override("font_size", int(BASE_FONT_SIZES["name"] * scale_factor))
 	if attack_label:
@@ -116,19 +131,11 @@ func _apply_scaled_fonts(scale_factor: float) -> void:
 		damage_label.add_theme_font_size_override("font_size", int(BASE_FONT_SIZES["damage"] * scale_factor))
 	if sleeping_icon:
 		sleeping_icon.add_theme_font_size_override("font_size", int(BASE_FONT_SIZES["sleeping"] * scale_factor))
+	if row_indicator:
+		row_indicator.add_theme_font_size_override("font_size", int(BASE_FONT_SIZES["row_indicator"] * scale_factor))
 
 
-func _on_viewport_size_changed() -> void:
-	_apply_responsive_size()
-
-
-func _apply_default_styles() -> void:
-	if taunt_border and not taunt_border.has_theme_stylebox_override("panel"):
-		var taunt_style := StyleBoxFlat.new()
-		taunt_style.bg_color = Color(0.6, 0.6, 0.6, 0.8)
-		taunt_style.set_corner_radius_all(8)
-		taunt_border.add_theme_stylebox_override("panel", taunt_style)
-	
+func _apply_default_styling() -> void:
 	if frame and not frame.has_theme_stylebox_override("panel"):
 		var frame_style := StyleBoxFlat.new()
 		frame_style.bg_color = Color(0.2, 0.18, 0.15)
@@ -184,6 +191,15 @@ func _parse_keywords() -> void:
 	has_persistent = card_data.has_keyword("Persistent")
 	has_snipe = card_data.has_keyword("Snipe")
 	
+	# NEW KEYWORDS
+	has_bully = card_data.has_keyword("Bully")
+	has_overclock = card_data.has_keyword("Overclock")
+	overclock_cost = card_data.get_overclock_cost()
+	has_huddle = card_data.has_keyword("Huddle")
+	has_ritual = card_data.has_keyword("Ritual")
+	ritual_cost = card_data.get_ritual_cost()
+	has_fated = card_data.has_keyword("Fated")
+	
 	if has_charge:
 		just_played = false
 
@@ -218,39 +234,108 @@ func _update_visuals() -> void:
 		taunt_border.visible = has_taunt
 	
 	# Shielded effect (golden glow)
-# Shielded effect (golden glow)
 	if divine_shield_effect:
 		divine_shield_effect.visible = has_shielded
 	
 	# Sleeping icon for just-played minions
 	if sleeping_icon:
 		sleeping_icon.visible = just_played and not has_charge
-
+	
 	# Hidden visual indicator (semi-transparent)
 	if has_hidden:
 		modulate.a = 0.6
 	else:
 		modulate.a = 1.0
+	
+	# Huddle indicator
+	if huddle_indicator:
+		huddle_indicator.visible = huddled_minion != null
+
 
 func can_attack() -> bool:
 	if just_played and not has_charge and not has_rush:
 		return false
-
-# Already attacked check (Aggressive allows 2 attacks)
+	
+	# Already attacked check (Aggressive allows 2 attacks)
 	if has_aggressive:
 		if attacks_this_turn >= 2:
 			return false
 	else:
 		if has_attacked:
 			return false
-
+	
 	return true
+
 
 func can_attack_from_row() -> bool:
 	# Back row minions can only attack if they have Snipe
 	if not is_front_row and not has_snipe:
 		return false
 	return can_attack()
+
+
+## Check if Bully bonus should trigger against a target
+func check_bully_condition(target: Node) -> bool:
+	if not has_bully:
+		return false
+	if not target or not is_instance_valid(target):
+		return false
+	if not target.has_method("get_card_data"):
+		return false
+	return target.current_attack < current_attack
+
+
+## Check if Fated bonus should trigger
+func is_fated_active() -> bool:
+	return has_fated and drawn_this_turn
+
+
+## Mark this card as drawn this turn (called by GameManager)
+func mark_drawn_this_turn() -> void:
+	drawn_this_turn = true
+
+
+## Attach a huddle minion behind this one
+func attach_huddle(huddle_minion_node: Node) -> void:
+	if huddled_minion != null:
+		# Chain huddles - attach to the existing huddled minion instead
+		if huddled_minion.has_method("attach_huddle"):
+			huddled_minion.attach_huddle(huddle_minion_node)
+			return
+	
+	huddled_minion = huddle_minion_node
+	huddle_minion_node.is_huddled = true
+	huddle_minion_node.visible = false
+	huddle_minion_node.set_process(false)
+	huddle_minion_node.set_physics_process(false)
+	
+	_update_visuals()
+	print("[Minion] %s huddled behind %s" % [huddle_minion_node.card_data.card_name, card_data.card_name])
+
+
+## Get the huddled minion (for when this minion dies)
+func get_huddled_minion() -> Node:
+	return huddled_minion
+
+
+## Promote huddled minion to this position (called when this minion dies)
+func promote_huddled_minion() -> Node:
+	if not huddled_minion or not is_instance_valid(huddled_minion):
+		return null
+	
+	var promoted := huddled_minion
+	huddled_minion = null
+	
+	promoted.is_huddled = false
+	promoted.visible = true
+	promoted.set_process(true)
+	promoted.set_physics_process(true)
+	promoted.is_front_row = is_front_row
+	promoted.lane_index = lane_index
+	promoted.just_played = false  # Can act next turn
+	
+	print("[Minion] %s promoted from huddle!" % promoted.card_data.card_name)
+	return promoted
 
 
 func take_damage(amount: int) -> void:
@@ -277,15 +362,18 @@ func buff_stats(attack_bonus: int, health_bonus: int) -> void:
 	max_health += health_bonus
 	_update_visuals()
 
+
 func remove_shielded() -> void:
 	"""Called when Shielded is consumed by damage"""
 	has_shielded = false
 	_update_visuals()
 
+
 func break_hidden() -> void:
 	"""Called when Hidden minion attacks - reveals it"""
 	has_hidden = false
 	_update_visuals()
+
 
 func remove_persistent() -> void:
 	"""Called after Persistent triggers - prevents infinite loop"""
@@ -293,8 +381,10 @@ func remove_persistent() -> void:
 	if card_data:
 		card_data.tags.erase("Persistent")
 
+
 func get_card_data() -> CardData:
 	return card_data
+
 
 func _play_damage_effect(amount: int) -> void:
 	if damage_label:
@@ -313,6 +403,7 @@ func refresh_for_turn() -> void:
 	has_attacked = false
 	has_moved_this_turn = false
 	attacks_this_turn = 0
+	drawn_this_turn = false  # Reset Fated tracking each turn
 	_update_can_attack_visual()
 
 
@@ -331,6 +422,7 @@ func _update_can_attack_visual() -> void:
 		if can_act:
 			highlight.color = Color(0.2, 1.0, 0.2, 0.3)
 
+
 func set_targetable(targetable: bool) -> void:
 	is_targetable = targetable
 	if highlight:
@@ -339,6 +431,7 @@ func set_targetable(targetable: bool) -> void:
 			highlight.color = Color(1.0, 0.3, 0.3, 0.4)
 		else:
 			_update_can_attack_visual()
+
 
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
@@ -359,12 +452,6 @@ func _start_drag(_global_pos: Vector2) -> void:
 	if owner_id == GameManager.active_player and not has_attacked and not has_moved_this_turn:
 		# We ONLY emit the signal so PlayerController spawns the targeting arrow.
 		minion_drag_started.emit(self)
-	else:
-		# Just a click
-		if is_targetable:
-			minion_targeted.emit(self)
-		else:
-			minion_clicked.emit(self)
 
 
 func _update_drag(_global_pos: Vector2) -> void:
@@ -377,20 +464,39 @@ func _end_drag(global_pos: Vector2) -> void:
 		minion_drag_ended.emit(self, global_pos)
 
 
-func _on_mouse_entered() -> void:
-	if not _is_dragging:
-		modulate = Color(1.15, 1.15, 1.15)
-
-
-func _on_mouse_exited() -> void:
-	if not _is_dragging:
-		modulate = Color.WHITE
-
 func play_death_animation() -> void:
 	var tween := create_tween()
-	tween.set_parallel(true)
 	tween.tween_property(self, "modulate:a", 0.0, 0.3)
-	tween.tween_property(self, "scale", Vector2(0.5, 0.5), 0.3)
-	tween.tween_property(self, "rotation", 0.3, 0.3)
+	tween.parallel().tween_property(self, "scale", Vector2(0.5, 0.5), 0.3)
 	await tween.finished
 	queue_free()
+
+
+## Play visual effect for Bully trigger
+func play_bully_effect() -> void:
+	var tween := create_tween()
+	tween.tween_property(self, "modulate", Color(1.5, 0.8, 0.8), 0.15)
+	tween.tween_property(self, "modulate", Color.WHITE, 0.15)
+
+
+## Play visual effect for Fated trigger
+func play_fated_effect() -> void:
+	var tween := create_tween()
+	tween.tween_property(self, "modulate", Color(1.0, 0.8, 1.2), 0.2)
+	tween.tween_property(self, "modulate", Color.WHITE, 0.2)
+
+
+## Play visual effect for Overclock trigger
+func play_overclock_effect() -> void:
+	var tween := create_tween()
+	tween.tween_property(self, "modulate", Color(0.5, 0.8, 1.5), 0.15)
+	tween.tween_property(self, "modulate", Color(0.8, 1.0, 1.3), 0.15)
+	tween.tween_property(self, "modulate", Color.WHITE, 0.15)
+
+
+## Play visual effect for Ritual sacrifice
+func play_ritual_sacrifice_effect() -> void:
+	var tween := create_tween()
+	tween.tween_property(self, "modulate", Color(0.8, 0.2, 0.8), 0.2)
+	tween.tween_property(self, "scale", Vector2(0.0, 0.0), 0.3)
+	await tween.finished

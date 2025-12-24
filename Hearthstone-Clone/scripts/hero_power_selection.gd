@@ -9,34 +9,150 @@ var selected_deck: Dictionary = {}
 ## Database of Hero Powers for each class
 var hero_power_database: Dictionary = {
 	"brute": [
-		{"name": "Savage Strike", "cost": 2, "description": "Deal 1 damage to a target minion. If it dies, gain 5 Hunger.", "id": "savage_strike"},
-		{"name": "Call to the Pit", "cost": 2, "description": "Summon a 1/1 Pit Hound with Rush.", "id": "call_to_pit"},
-		{"name": "Blood for Blood", "cost": 2, "description": "Take 2 damage. Give a friendly minion +3 Attack this turn.", "id": "blood_for_blood"}
+		{
+			"name": "Voracious Strike",
+			"cost": 2,
+			"description": "Deal 1 damage to any target. Hunger Kicker: Spend 10 Hunger to deal 3 damage instead.",
+			"id": "voracious_strike",
+			"target_type": "any",
+			"hunger_kicker": 10,
+			"base_damage": 1,
+			"kicker_damage": 3
+		},
+		{
+			"name": "Beast Fury",
+			"cost": 2,
+			"description": "Give a friendly Beast +2 Attack this turn. If it kills a minion this turn, generate 5 Hunger.",
+			"id": "beast_fury",
+			"target_type": "friendly_beast",
+			"attack_bonus": 2,
+			"hunger_reward": 5
+		},
+		{
+			"name": "Intimidating Shout",
+			"cost": 2,
+			"description": "Give a minion +1 Attack and Bully: \"Gain Shielded before attacking.\"",
+			"id": "intimidating_shout",
+			"target_type": "any_minion",
+			"attack_bonus": 1,
+			"grants_bully": true,
+			"bully_effect": "shielded_on_attack"
+		}
 	],
 	"technical": [
-		{"name": "Static Shock", "cost": 2, "description": "Deal 1 damage to any target. Gain 2 Battery.", "id": "static_shock"},
-		{"name": "Fabricate", "cost": 2, "description": "Summon a 0/2 Barrier Bot with Taunt.", "id": "fabricate"},
-		{"name": "Optimize", "cost": 2, "description": "Look at the top 2 cards of your deck. Draw one; put the other on the bottom.", "id": "optimize"}
+		{
+			"name": "Static Shock",
+			"cost": 2,
+			"description": "Deal 1 damage to any target. Gain 2 Battery.",
+			"id": "static_shock",
+			"target_type": "any"
+		},
+		{
+			"name": "Fabricate",
+			"cost": 2,
+			"description": "Summon a 0/2 Barrier Bot with Taunt.",
+			"id": "fabricate",
+			"target_type": "none"
+		},
+		{
+			"name": "Optimize",
+			"cost": 2,
+			"description": "Look at the top 2 cards of your deck. Draw one; put the other on the bottom.",
+			"id": "optimize",
+			"target_type": "none"
+		}
 	],
 	"cute": [
-		{"name": "Open Auditions", "cost": 2, "description": "Summon a 1/1 Backup Dancer.", "id": "open_auditions"},
-		{"name": "Pep Talk", "cost": 2, "description": "Give a minion +1/+1. If you have a Stage location active, give it +2/+2 instead.", "id": "pep_talk"},
-		{"name": "Merch Cannon", "cost": 2, "description": "Draw a card. It costs (1) more.", "id": "merch_cannon"}
+		{
+			"name": "Open Auditions",
+			"cost": 2,
+			"description": "Summon a 1/1 Backup Dancer.",
+			"id": "open_auditions",
+			"target_type": "none"
+		},
+		{
+			"name": "Pep Talk",
+			"cost": 2,
+			"description": "Give a minion +1/+1. If you have a Stage location active, give it +2/+2 instead.",
+			"id": "pep_talk",
+			"target_type": "friendly_minion"
+		},
+		{
+			"name": "Merch Cannon",
+			"cost": 2,
+			"description": "Draw a card. It costs (1) more.",
+			"id": "merch_cannon",
+			"target_type": "none"
+		}
 	],
-	"the_other": [
-		{"name": "Grim Ritual", "cost": 2, "description": "Destroy a friendly minion. Draw a card.", "id": "grim_ritual"},
-		{"name": "Grave Touch", "cost": 2, "description": "Deal 1 damage to a minion. If it dies, summon a 1/1 Skeleton.", "id": "grave_touch"},
-		{"name": "Haunt", "cost": 2, "description": "Add a random Undead to your hand.", "id": "haunt"}
+	"other": [
+		{
+			"name": "Grim Ritual",
+			"cost": 2,
+			"description": "Destroy a friendly minion. Draw a card.",
+			"id": "grim_ritual",
+			"target_type": "friendly_minion"
+		},
+		{
+			"name": "Grave Touch",
+			"cost": 2,
+			"description": "Deal 1 damage to a minion. If it dies, summon a 1/1 Skeleton.",
+			"id": "grave_touch",
+			"target_type": "any_minion"
+		},
+		{
+			"name": "Haunt",
+			"cost": 2,
+			"description": "Add a random Undead to your hand.",
+			"id": "haunt",
+			"target_type": "none"
+		}
 	],
-	"the_ace": [
-		{"name": "Blood Oath", "cost": 2, "description": "Deal 1 damage to your Hero. Gain 1 Mana Crystal this turn only.", "id": "blood_oath"},
-		{"name": "Draconic Armor", "cost": 2, "description": "Gain 2 Armor.", "id": "draconic_armor"},
-		{"name": "Challenge", "cost": 2, "description": "Give a minion Taunt and +1 Health.", "id": "challenge"}
+	"ace": [
+		{
+			"name": "Blood Oath",
+			"cost": 2,
+			"description": "Deal 1 damage to your Hero. Gain 1 Mana Crystal this turn only.",
+			"id": "blood_oath",
+			"target_type": "none"
+		},
+		{
+			"name": "Draconic Armor",
+			"cost": 2,
+			"description": "Gain 2 Armor.",
+			"id": "draconic_armor",
+			"target_type": "none"
+		},
+		{
+			"name": "Challenge",
+			"cost": 2,
+			"description": "Give a minion Taunt and +1 Health.",
+			"id": "challenge",
+			"target_type": "any_minion"
+		}
 	],
 	"default": [
-		{"name": "Minor Heal", "cost": 2, "description": "Restore 2 Health to any target.", "id": "generic_heal"},
-		{"name": "Dagger Mastery", "cost": 2, "description": "Equip a 1/2 Dagger.", "id": "equip_dagger"},
-		{"name": "Life Tap", "cost": 2, "description": "Draw a card and take 2 damage.", "id": "tap"}
+		{
+			"name": "Minor Heal",
+			"cost": 2,
+			"description": "Restore 2 Health to any target.",
+			"id": "generic_heal",
+			"target_type": "any"
+		},
+		{
+			"name": "Dagger Mastery",
+			"cost": 2,
+			"description": "Equip a 1/2 Dagger.",
+			"id": "equip_dagger",
+			"target_type": "none"
+		},
+		{
+			"name": "Life Tap",
+			"cost": 2,
+			"description": "Draw a card and take 2 damage.",
+			"id": "tap",
+			"target_type": "none"
+		}
 	]
 }
 
@@ -158,14 +274,14 @@ func _load_power_options() -> void:
 
 func _create_power_card(data: Dictionary, index: int) -> Button:
 	var btn = Button.new()
-	btn.custom_minimum_size = Vector2(220, 300)
+	btn.custom_minimum_size = Vector2(220, 320)
 	btn.toggle_mode = true
 	
 	# Container for card content
 	var vbox = VBoxContainer.new()
 	vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
 	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	vbox.add_theme_constant_override("separation", 15)
+	vbox.add_theme_constant_override("separation", 12)
 	
 	# Inner Margin
 	var inner_margin = MarginContainer.new()
@@ -174,49 +290,64 @@ func _create_power_card(data: Dictionary, index: int) -> Button:
 	inner_margin.add_theme_constant_override("margin_left", 15)
 	inner_margin.add_theme_constant_override("margin_right", 15)
 	inner_margin.add_theme_constant_override("margin_top", 20)
-	inner_margin.add_theme_constant_override("margin_bottom", 20)
+	inner_margin.add_theme_constant_override("margin_bottom", 15)
 	inner_margin.add_child(vbox)
 	btn.add_child(inner_margin)
 	
 	# Power Name
 	var name_label = Label.new()
-	name_label.text = data.get("name", "Unknown")
+	name_label.text = data.get("name", "Unknown Power")
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_label.add_theme_font_size_override("font_size", 22)
-	name_label.add_theme_color_override("font_color", Color(1, 0.85, 0.4))
+	name_label.add_theme_font_size_override("font_size", 18)
+	name_label.add_theme_color_override("font_color", Color(0.95, 0.9, 0.7))
+	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(name_label)
 	
 	# Cost
 	var cost_label = Label.new()
-	cost_label.text = "Cost: %d" % data.get("cost", 2)
+	cost_label.text = "Cost: %d Mana" % data.get("cost", 2)
 	cost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	cost_label.add_theme_font_size_override("font_size", 18)
-	cost_label.add_theme_color_override("font_color", Color(0.4, 0.7, 1.0))
+	cost_label.add_theme_font_size_override("font_size", 14)
+	cost_label.add_theme_color_override("font_color", Color(0.4, 0.6, 1.0))
 	cost_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(cost_label)
 	
 	# Spacer
 	var spacer = Control.new()
-	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	spacer.custom_minimum_size = Vector2(0, 5)
 	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(spacer)
 	
 	# Description
-	var desc_label = Label.new()
-	desc_label.text = data.get("description", "")
-	desc_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	desc_label.add_theme_font_size_override("font_size", 16)
-	desc_label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
+	var desc_label = RichTextLabel.new()
+	desc_label.bbcode_enabled = true
+	desc_label.fit_content = true
+	desc_label.scroll_active = false
+	desc_label.text = _format_power_description(data.get("description", ""))
+	desc_label.add_theme_font_size_override("normal_font_size", 13)
+	desc_label.add_theme_color_override("default_color", Color(0.85, 0.85, 0.9))
 	desc_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	desc_label.custom_minimum_size = Vector2(180, 100)
 	vbox.add_child(desc_label)
 	
-	# Another spacer
+	# Fill remaining space
 	var spacer2 = Control.new()
 	spacer2.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	spacer2.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(spacer2)
+	
+	# Target type indicator
+	var target_type: String = data.get("target_type", "none")
+	var target_text: String = _get_target_type_text(target_type)
+	if target_text != "":
+		var target_label = Label.new()
+		target_label.text = target_text
+		target_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		target_label.add_theme_font_size_override("font_size", 11)
+		target_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.65))
+		target_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		vbox.add_child(target_label)
 	
 	# Initial styling
 	_style_power_button(btn, false)
@@ -225,6 +356,33 @@ func _create_power_card(data: Dictionary, index: int) -> Button:
 	btn.pressed.connect(_on_power_clicked.bind(index))
 	
 	return btn
+
+
+func _format_power_description(desc: String) -> String:
+	# Bold keywords
+	var formatted := desc
+	var keywords := ["Hunger Kicker", "Bully", "Shielded", "Taunt", "Beast"]
+	for keyword in keywords:
+		formatted = formatted.replace(keyword, "[b]%s[/b]" % keyword)
+	return "[center]%s[/center]" % formatted
+
+
+func _get_target_type_text(target_type: String) -> String:
+	match target_type:
+		"any":
+			return "Target: Any"
+		"any_minion":
+			return "Target: Any Minion"
+		"friendly_minion":
+			return "Target: Friendly Minion"
+		"enemy_minion":
+			return "Target: Enemy Minion"
+		"friendly_beast":
+			return "Target: Friendly Beast"
+		"none":
+			return ""
+		_:
+			return ""
 
 
 func _style_power_button(btn: Button, is_selected: bool) -> void:
