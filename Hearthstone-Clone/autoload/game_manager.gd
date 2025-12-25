@@ -133,12 +133,17 @@ func _ready() -> void:
 func _initialize_player_data() -> void:
 	players.clear()
 	for i in range(2):
+		# Apply upgrades for Player One
+		var starting_mana_bonus = 0
+		if i == PLAYER_ONE:
+			starting_mana_bonus = get_persistent_upgrade("starting_mana")
+
 		players.append({
 			"class_id": "neutral",
 			"class_resource": 0,
 			"class_resource_max": 0,
-			"current_mana": 0,
-			"max_mana": 0,
+			"current_mana": starting_mana_bonus,
+			"max_mana": starting_mana_bonus,
 			"hero_health": 30,
 			"hero_max_health": 30,
 			"hero_armor": 0,
@@ -314,6 +319,15 @@ func _finish_mulligan_phase() -> void:
 	all_mulligans_complete.emit()
 	
 	await get_tree().create_timer(0.5).timeout
+
+	# Apply "Card Draw" upgrade (Start battle with +1 card)
+	var bonus_draws = get_persistent_upgrade("card_draw")
+	if bonus_draws > 0:
+		print("[GameManager] Applying %d bonus draws from upgrades" % bonus_draws)
+		for i in range(bonus_draws):
+			_draw_card(PLAYER_ONE)
+			await get_tree().create_timer(0.2).timeout
+
 	_start_turn(PLAYER_ONE)
 
 
@@ -377,7 +391,8 @@ func _execute_draw_phase(player_id: int) -> void:
 	
 	# Skip draw on very first turn for player one (standard CCG rule)
 	if not (_first_turn[player_id] and player_id == PLAYER_ONE):
-		for i in range(CARDS_DRAWN_PER_TURN):
+		var cards_to_draw = get_cards_drawn_per_turn(player_id)
+		for i in range(cards_to_draw):
 			_draw_card(player_id)
 	
 	_first_turn[player_id] = false
@@ -408,10 +423,11 @@ func _draw_card(player_id: int) -> CardData:
 		_check_hero_death(player_id)
 		return null
 	
-	if hand.size() >= MAX_HAND_SIZE:
+	var max_hand = get_max_hand_size(player_id)
+	if hand.size() >= max_hand:
 		var burned_card: CardData = deck.pop_front()
 		player_data["graveyard"].append(burned_card)
-		print("[GameManager] Player %d burned card: %s" % [player_id, burned_card.card_name])
+		print("[GameManager] Player %d burned card: %s (Hand full: %d/%d)" % [player_id, burned_card.card_name, hand.size(), max_hand])
 		return null
 	
 	var drawn_card: CardData = deck.pop_front()
@@ -991,3 +1007,24 @@ func is_player_turn(player_id: int) -> bool:
 
 func get_opponent_id(player_id: int) -> int:
 	return 1 - player_id
+
+
+## Get a persistent upgrade value (only applies to Player One)
+func get_persistent_upgrade(upgrade_id: String) -> int:
+	if not has_meta("shop_upgrades"):
+		return 0
+	var upgrades: Dictionary = get_meta("shop_upgrades")
+	return upgrades.get(upgrade_id, 0)
+
+
+func get_max_hand_size(player_id: int) -> int:
+	var base = MAX_HAND_SIZE
+	if player_id == PLAYER_ONE:
+		base += get_persistent_upgrade("max_hand_size")
+	return base
+
+
+func get_cards_drawn_per_turn(player_id: int) -> int:
+	var base = CARDS_DRAWN_PER_TURN
+	# Currently no upgrade for cards per turn, but could be added here
+	return base
