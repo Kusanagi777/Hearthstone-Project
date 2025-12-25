@@ -74,6 +74,9 @@ var buy_button: Button
 var selected_item: Dictionary = {}
 var selected_item_panel: PanelContainer = null
 
+## Cache for all cards (loaded once)
+var _all_cards_cache: Array[CardData] = []
+
 
 func _ready() -> void:
 	# Load player gold
@@ -105,7 +108,8 @@ func _load_card_database() -> void:
 		_generate_fallback_cards()
 		return
 	
-	var all_cards: Array[Dictionary] = []
+	var all_cards_data: Array[Dictionary] = []
+	_all_cards_cache.clear()
 	
 	dir.list_dir_begin()
 	var file_name := dir.get_next()
@@ -118,6 +122,9 @@ func _load_card_database() -> void:
 			if card_resource and card_resource is CardData:
 				var card_data: CardData = card_resource
 				
+				# Cache the card resource
+				_all_cards_cache.append(card_data)
+
 				# Determine price based on stats and rarity
 				var base_price := (card_data.cost * 15) + (card_data.attack * 10) + (card_data.health * 8)
 				
@@ -143,7 +150,7 @@ func _load_card_database() -> void:
 					CardData.CardType.LOCATION:
 						icon = "⚔️"
 				
-				all_cards.append({
+				all_cards_data.append({
 					"card_data": card_data,
 					"name": card_data.card_name,
 					"cost": card_data.cost,
@@ -159,15 +166,15 @@ func _load_card_database() -> void:
 	
 	dir.list_dir_end()
 	
-	if all_cards.is_empty():
+	if all_cards_data.is_empty():
 		print("[ShopScreen] No cards found in database, using fallback")
 		_generate_fallback_cards()
 		return
 	
 	# Shuffle and pick up to 6 random cards for the shop
-	all_cards.shuffle()
-	for i in range(mini(6, all_cards.size())):
-		card_shop_items.append(all_cards[i])
+	all_cards_data.shuffle()
+	for i in range(mini(6, all_cards_data.size())):
+		card_shop_items.append(all_cards_data[i])
 	
 	print("[ShopScreen] Loaded %d cards for shop" % card_shop_items.size())
 
@@ -457,9 +464,12 @@ func _on_buy_pressed() -> void:
 	var item_name = selected_item.get("name", "item")
 	print("[ShopScreen] Purchased: %s for %d gold" % [item_name, price])
 	
-	# TODO: Add item to player inventory/deck
-	# For now, just show feedback
-	_show_purchase_feedback(item_name)
+	# Add item to player inventory/deck
+	var handled_feedback = _add_item_to_inventory(selected_item)
+
+	# Show feedback if not already handled
+	if not handled_feedback:
+		_show_purchase_feedback(item_name)
 	
 	# Remove from shop (one-time purchase for cards)
 	if current_tab == ShopTab.CARDS:
@@ -470,6 +480,87 @@ func _on_buy_pressed() -> void:
 	selected_item_panel = null
 	_populate_items()
 	_update_buy_button()
+
+
+func _add_item_to_inventory(item: Dictionary) -> bool:
+	match current_tab:
+		ShopTab.CARDS:
+			_add_card_to_deck(item)
+			return false
+		ShopTab.UPGRADES:
+			_add_upgrade(item)
+			return false
+		ShopTab.PACKS:
+			_open_pack(item)
+			return true
+	return false
+
+
+func _add_card_to_deck(item: Dictionary) -> void:
+	var deck_meta = {}
+	if GameManager.has_meta("selected_deck"):
+		deck_meta = GameManager.get_meta("selected_deck")
+
+	if not deck_meta.has("cards"):
+		deck_meta["cards"] = []
+
+	var card_data: CardData = item.get("card_data")
+	if card_data:
+		deck_meta["cards"].append(card_data.id)
+		GameManager.set_meta("selected_deck", deck_meta)
+		print("[ShopScreen] Added card %s to deck" % card_data.id)
+
+
+func _add_upgrade(item: Dictionary) -> void:
+	var upgrade_id = item.get("id")
+	if upgrade_id:
+		var upgrades = {}
+		if GameManager.has_meta("shop_upgrades"):
+			upgrades = GameManager.get_meta("shop_upgrades")
+
+		upgrades[upgrade_id] = upgrades.get(upgrade_id, 0) + 1
+		GameManager.set_meta("shop_upgrades", upgrades)
+		print("[ShopScreen] Added upgrade %s (Level %d)" % [upgrade_id, upgrades[upgrade_id]])
+
+
+func _open_pack(item: Dictionary) -> void:
+	# Determine pack type and number of cards
+	var is_rare_pack = (item.get("id") == "rare_pack")
+	var num_cards = 3
+
+	if _all_cards_cache.is_empty():
+		# Fallback if no cards found
+		print("[ShopScreen] No cards found for pack, using dummy data")
+		return
+
+	var new_cards: Array[String] = []
+	var new_card_names: Array[String] = []
+
+	for i in range(num_cards):
+		var card: CardData = _all_cards_cache.pick_random()
+
+		# If rare pack, ensure at least one rare+
+		if is_rare_pack and i == 0:
+			var rare_cards = _all_cards_cache.filter(func(c): return c.rarity >= CardData.Rarity.RARE)
+			if not rare_cards.is_empty():
+				card = rare_cards.pick_random()
+
+		new_cards.append(card.id)
+		new_card_names.append(card.card_name)
+
+	# Add to deck
+	var deck_meta = {}
+	if GameManager.has_meta("selected_deck"):
+		deck_meta = GameManager.get_meta("selected_deck")
+
+	if not deck_meta.has("cards"):
+		deck_meta["cards"] = []
+
+	deck_meta["cards"].append_array(new_cards)
+	GameManager.set_meta("selected_deck", deck_meta)
+
+	print("[ShopScreen] Opened pack! Got: %s" % ", ".join(new_card_names))
+	_show_purchase_feedback("Pack: " + ", ".join(new_card_names))
 
 
 func _show_purchase_feedback(item_name: String) -> void:
