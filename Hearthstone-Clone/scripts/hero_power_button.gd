@@ -513,19 +513,23 @@ func _execute_stacked_deck() -> void:
 		print("[HeroPowerButton] Stacked Deck: Deck is empty")
 		return
 	
-	# TODO: Implement discover UI - for now, pick a random card
-	var random_index: int = randi() % deck.size()
-	var chosen_card: CardData = deck[random_index]
+	# Pick 3 random distinct cards from the deck
+	var choices: Array = []
+	var available_indices: Array = []
+	for i in range(deck.size()):
+		available_indices.append(i)
 	
-	# Remove from current position and put on top
-	deck.remove_at(random_index)
-	deck.insert(0, chosen_card)
+	var num_choices: int = min(3, deck.size())
 	
-	# Mark for cost reduction next turn
-	chosen_card.set_meta("stacked_deck_reduction", 2)
-	chosen_card.set_meta("stacked_deck_turn", GameManager.turn_number + 1)
+	for i in range(num_choices):
+		var rand_idx: int = randi() % available_indices.size()
+		var deck_idx: int = available_indices[rand_idx]
+		choices.append(deck[deck_idx])
+		available_indices.remove_at(rand_idx)
 	
-	print("[HeroPowerButton] Stacked Deck: Put %s on top (will cost 2 less)" % chosen_card.card_name)
+	# Request selection UI
+	card_selection_requested.emit(power_data, choices, "stacked_deck")
+	print("[HeroPowerButton] Stacked Deck: Requested selection from %d cards" % choices.size())
 
 
 ## ============================================================================

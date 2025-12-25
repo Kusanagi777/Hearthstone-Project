@@ -215,6 +215,33 @@ static func apply_cost_modifiers(card: CardData) -> int:
 	return max(0, base_cost - reduction)
 
 
+## Apply Stacked Deck effect (put on top, reduce cost)
+static func apply_stacked_deck_effect(player_id: int, card: CardData) -> void:
+	if not card:
+		return
+
+	var deck: Array = GameManager.players[player_id]["deck"]
+
+	# Find card in deck and remove it (it should be there)
+	var index: int = -1
+	for i in range(deck.size()):
+		if deck[i] == card:
+			index = i
+			break
+
+	if index != -1:
+		deck.remove_at(index)
+
+	# Insert at top
+	deck.insert(0, card)
+
+	# Apply cost reduction metadata
+	card.set_meta("stacked_deck_reduction", 2)
+	card.set_meta("stacked_deck_turn", GameManager.turn_number + 1)
+
+	print("[HeroPowerEffects] Stacked Deck: Moved %s to top with cost reduction" % card.card_name)
+
+
 ## ============================================================================
 ## DRACONIC HERALD DRAGON SEARCH
 ## ============================================================================

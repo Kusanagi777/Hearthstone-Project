@@ -3,6 +3,7 @@ extends Control
 
 const HERO_POWER_SCENE = preload("res://scenes/hero_power_button.tscn")
 const MULLIGAN_SCREEN_SCENE = preload("res://scenes/mulligan_screen.tscn")
+const DISCOVER_SELECTION_SCENE = preload("res://scenes/discover_selection.tscn")
 
 ## Player controllers
 @export var player_one: player_controller
@@ -50,6 +51,7 @@ var enemy_back_lanes: Array[Control] = []
 
 ## Mulligan Screen
 var mulligan_screen: Control = null
+var discover_screen: Control = null
 
 func _ready() -> void:
 	visible = true
@@ -80,6 +82,7 @@ func _ready() -> void:
 	
 	await get_tree().create_timer(0.5).timeout
 	_setup_mulligan_screen()
+	_setup_discover_screen()
 	_setup_test_game()
 
 func _setup_mulligan_screen() -> void:
@@ -102,6 +105,21 @@ func _setup_mulligan_screen() -> void:
 	
 	# Connect mulligan completion signal
 	mulligan_screen.mulligan_complete.connect(_on_mulligan_complete)
+
+func _setup_discover_screen() -> void:
+	if DISCOVER_SELECTION_SCENE:
+		discover_screen = DISCOVER_SELECTION_SCENE.instantiate()
+	else:
+		discover_screen = Control.new()
+		discover_screen.set_script(load("res://scripts/discover_selection.gd"))
+
+	discover_screen.visible = false
+
+	# Add to a CanvasLayer so it's always visible above game elements
+	var ui_layer := CanvasLayer.new()
+	ui_layer.layer = 15
+	ui_layer.add_child(discover_screen)
+	add_child(ui_layer)
 	
 func _on_mulligan_started(player_id: int, cards: Array[CardData]) -> void:
 	print("[MainGame] Mulligan started for player %d with %d cards" % [player_id, cards.size()])
@@ -153,8 +171,27 @@ func _setup_hero_power() -> void:
 		player_hero_area.move_child(btn, 1) 
 		
 		# Initialize logic
-		if btn.has_method("setup"):
-			btn.setup(power_data, 0) # 0 is Player One ID
+		if btn.has_method("initialize"):
+			btn.initialize(power_data, 0) # 0 is Player One ID
+
+		# Connect selection signals
+		if btn.has_signal("card_selection_requested"):
+			btn.card_selection_requested.connect(_on_hero_power_card_selection_requested)
+
+func _on_hero_power_card_selection_requested(power_data: Dictionary, cards: Array, selection_type: String) -> void:
+	print("[MainGame] Hero power requested selection: %s" % selection_type)
+
+	if selection_type == "stacked_deck":
+		_show_stacked_deck_selection(cards)
+	# Handle other selection types (hand_minion, etc) here if needed
+
+func _show_stacked_deck_selection(cards: Array) -> void:
+	if not discover_screen:
+		return
+
+	discover_screen.start_discovery(cards, "Stacked Deck: Choose a card", func(selected_card):
+		HeroPowerEffects.apply_stacked_deck_effect(0, selected_card)
+	)
 
 func _setup_lanes() -> void:
 	# Find player front lanes (in PlayerBoardRow/PlayerBoardArea/PlayerFrontRow/PlayerFrontLanes)
