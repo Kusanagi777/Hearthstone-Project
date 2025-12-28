@@ -19,23 +19,6 @@ func on_play(gm: Node, player_id: int, data: CardData, target: Variant) -> void:
 	card_data = data
 	_execute_play_effect(target)
 
-
-## Called when a minion's battlecry triggers
-func on_battlecry(gm: Node, player_id: int, data: CardData, target: Variant) -> void:
-	game_manager = gm
-	owner_id = player_id
-	card_data = data
-	_execute_battlecry(target)
-
-
-## Called when a minion with deathrattle dies
-func on_deathrattle(gm: Node, player_id: int, data: CardData, board_position: int) -> void:
-	game_manager = gm
-	owner_id = player_id
-	card_data = data
-	_execute_deathrattle(board_position)
-
-
 ## Override in subclasses
 func _execute_play_effect(_target: Variant) -> void:
 	pass

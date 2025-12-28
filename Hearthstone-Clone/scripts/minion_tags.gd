@@ -1,17 +1,17 @@
 # res://data/enums/minion_tags.gd
-## Minion Tags (Creature Types) - Bitflag Constants
+## Minion Tags - Bitflag Constants
 ## Use these constants when checking minion types in code
 class_name MinionTags
 
 # Bitflag values (powers of 2 for combining)
 const NONE: int = 0
-const BEAST: int = 1 << 0   # 1
-const MECH: int = 1 << 1    # 2
-const IDOL: int = 1 << 2    # 4
-const UNDEAD: int = 1 << 3  # 8
-const DRAGON: int = 1 << 4  # 16
+const BEAST: int = 1 << 0     # 1
+const MECH: int = 1 << 1      # 2
+const IDOL: int = 1 << 2      # 4
+const UNDEAD: int = 1 << 3    # 8
+const DRAGON: int = 1 << 4    # 16
 
-# All tags combined (useful for "any tag" checks)
+# All tags combined (useful for "any type" checks)
 const ALL: int = BEAST | MECH | IDOL | UNDEAD | DRAGON  # 31
 
 

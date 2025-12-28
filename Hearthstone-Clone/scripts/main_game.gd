@@ -1,9 +1,6 @@
 # res://scripts/main_game.gd
 extends Control
 
-const HERO_POWER_SCENE = preload("res://scenes/hero_power_button.tscn")
-const MULLIGAN_SCREEN_SCENE = preload("res://scenes/mulligan_screen.tscn")
-
 ## Player controllers
 @export var player_one: player_controller
 @export var player_two: player_controller
@@ -20,10 +17,6 @@ const MULLIGAN_SCREEN_SCENE = preload("res://scenes/mulligan_screen.tscn")
 @export var game_over_panel: Panel
 @export var winner_label: Label
 
-## Class Resources
-@export var player_resource_label: Label
-@export var enemy_resource_label: Label
-
 ## Hand containers
 @export var player_hand_container: Control
 @export var enemy_hand_container: Control
@@ -38,8 +31,7 @@ const MULLIGAN_SCREEN_SCENE = preload("res://scenes/mulligan_screen.tscn")
 ## Reference resolution for scaling
 const REFERENCE_HEIGHT := 720.0
 
-## Selected class and deck from character selection
-var selected_class: Dictionary = {}
+## Selected deck from deck selection (optional)
 var selected_deck: Dictionary = {}
 
 ## Lane references - populated in _ready
@@ -48,18 +40,12 @@ var player_back_lanes: Array[Control] = []
 var enemy_front_lanes: Array[Control] = []
 var enemy_back_lanes: Array[Control] = []
 
-## Mulligan Screen
-var mulligan_screen: Control = null
 
 func _ready() -> void:
 	visible = true
 	modulate.a = 1.0
 	
-	# Get selected class and deck from GameManager metadata
-	if GameManager.has_meta("selected_class"):
-		selected_class = GameManager.get_meta("selected_class")
-		print("[MainGame] Playing as class: %s" % selected_class.get("name", "Unknown"))
-	
+	# Get selected deck from GameManager metadata (if coming from deck selection)
 	if GameManager.has_meta("selected_deck"):
 		selected_deck = GameManager.get_meta("selected_deck")
 		print("[MainGame] Using deck: %s" % selected_deck.get("name", "Unknown"))
@@ -68,7 +54,6 @@ func _ready() -> void:
 	_setup_lanes()
 	_apply_styling()
 	_apply_responsive_fonts()
-	_setup_hero_power()
 	
 	if game_over_panel:
 		game_over_panel.visible = false
@@ -79,85 +64,49 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(_on_viewport_size_changed)
 	
 	await get_tree().create_timer(0.5).timeout
-	_setup_mulligan_screen()
-	_setup_test_game()
-
-func _setup_mulligan_screen() -> void:
-	# Create mulligan screen (either from scene or script)
-	if MULLIGAN_SCREEN_SCENE:
-		mulligan_screen = MULLIGAN_SCREEN_SCENE.instantiate()
-	else:
-		# Create programmatically if no scene
-		mulligan_screen = Control.new()
-		mulligan_screen.set_script(load("res://scripts/mulligan_screen.gd"))
-	
-	mulligan_screen.visible = false
-	mulligan_screen.z_index = 100  # Ensure it's on top
-	
-	# Add to a CanvasLayer so it's always visible above game elements
-	var mulligan_layer := CanvasLayer.new()
-	mulligan_layer.layer = 10
-	mulligan_layer.add_child(mulligan_screen)
-	add_child(mulligan_layer)
-	
-	# Connect mulligan completion signal
-	mulligan_screen.mulligan_complete.connect(_on_mulligan_complete)
-	
-func _on_mulligan_started(player_id: int, cards: Array[CardData]) -> void:
-	print("[MainGame] Mulligan started for player %d with %d cards" % [player_id, cards.size()])
-	
-	# Determine if this player is AI
-	var is_ai: bool = false
-	if player_id == 1 and player_two and player_two.is_ai:
-		is_ai = true
-	
-	# Start the mulligan UI
-	mulligan_screen.start_mulligan(
-		player_id,
-		cards,
-		is_ai,
-		_on_mulligan_selection_made
-	)
+	_setup_game()
 
 
-func _on_mulligan_selection_made(player_id: int, kept_cards: Array[CardData], returned_cards: Array[CardData]) -> void:
-	# Tell GameManager the mulligan is complete
-	GameManager.complete_mulligan(player_id, kept_cards, returned_cards)
-
-
-func _on_mulligan_complete(player_id: int, kept_cards: Array[CardData]) -> void:
-	print("[MainGame] Player %d mulligan complete, kept %d cards" % [player_id, kept_cards.size()])
-
-
-func _on_all_mulligans_complete() -> void:
-	print("[MainGame] All mulligans complete, game starting!")
-	# Hide mulligan screen if still visible
-	if mulligan_screen:
-		mulligan_screen.visible = false
-		
-func _setup_hero_power() -> void:
-	# Only set up for Player 1 (us) for now
+func _find_nodes_if_needed() -> void:
+	# Find nodes by path if not assigned in editor
+	if not turn_button:
+		turn_button = find_child("TurnButton", true, false)
+	if not mana_label:
+		mana_label = find_child("ManaLabel", true, false)
+	if not enemy_mana_label:
+		enemy_mana_label = find_child("EnemyManaLabel", true, false)
+	if not turn_indicator:
+		turn_indicator = find_child("TurnIndicator", true, false)
+	if not player_health_label:
+		player_health_label = find_child("PlayerHealthLabel", true, false)
+	if not enemy_health_label:
+		enemy_health_label = find_child("EnemyHealthLabel", true, false)
+	if not player_deck_label:
+		player_deck_label = find_child("PlayerDeckLabel", true, false)
+	if not enemy_deck_label:
+		enemy_deck_label = find_child("EnemyDeckLabel", true, false)
+	if not game_over_panel:
+		game_over_panel = find_child("GameOverPanel", true, false)
+	if not winner_label:
+		winner_label = find_child("WinnerLabel", true, false)
+	if not player_hand_container:
+		player_hand_container = find_child("PlayerHandContainer", true, false)
+	if not enemy_hand_container:
+		enemy_hand_container = find_child("EnemyHandContainer", true, false)
 	if not player_hero_area:
-		return
-		
-	if GameManager.has_meta("selected_hero_power"):
-		var power_data = GameManager.get_meta("selected_hero_power")
-		var btn = HERO_POWER_SCENE.instantiate()
-		
-		# Add to the container
-		player_hero_area.add_child(btn)
-		
-		# Attempt to place it in the middle (between portrait and resources)
-		# This assumes player_hero_area has 3 children total (Portrait, Power, Resource)
-		# You might need to adjust the index '1' depending on your specific Scene Tree structure
-		player_hero_area.move_child(btn, 1) 
-		
-		# Initialize logic
-		if btn.has_method("setup"):
-			btn.setup(power_data, 0) # 0 is Player One ID
+		player_hero_area = find_child("PlayerHeroPanel", true, false)
+	if not enemy_hero_area:
+		enemy_hero_area = find_child("EnemyHeroPanel", true, false)
+	
+	# Find player controllers
+	if not player_one:
+		player_one = find_child("PlayerOneController", true, false)
+	if not player_two:
+		player_two = find_child("PlayerTwoController", true, false)
+
 
 func _setup_lanes() -> void:
-	# Find player front lanes (in PlayerBoardRow/PlayerBoardArea/PlayerFrontRow/PlayerFrontLanes)
+	# Find player front lanes
 	var player_front_container = find_child("PlayerFrontLanes", true, false)
 	if player_front_container:
 		for i in range(player_front_container.get_child_count()):
@@ -205,253 +154,100 @@ func _setup_lanes() -> void:
 		player_two.back_lanes = enemy_back_lanes
 		player_two.enemy_front_lanes = player_front_lanes
 		player_two.enemy_back_lanes = player_back_lanes
-	
-	print("[MainGame] Lanes setup: Player front=%d, back=%d | Enemy front=%d, back=%d" % [
-		player_front_lanes.size(), player_back_lanes.size(),
-		enemy_front_lanes.size(), enemy_back_lanes.size()
-	])
 
 
-func _style_lane_panel(lane: Control, is_player: bool, is_front: bool, lane_index: int) -> void:
-	if not lane is PanelContainer:
-		return
-	
-	var panel := lane as PanelContainer
+func _style_lane_panel(panel: PanelContainer, is_player: bool, is_front: bool, index: int) -> void:
 	var style := StyleBoxFlat.new()
 	
-	# Color coding: front rows are brighter, back rows are darker
-	if is_player:
-		if is_front:
-			style.bg_color = Color(0.15, 0.22, 0.18, 0.7)  # Greenish for player front
-		else:
-			style.bg_color = Color(0.12, 0.16, 0.14, 0.5)  # Darker for player back
+	# Base color varies by row
+	if is_front:
+		style.bg_color = Color(0.15, 0.18, 0.22, 0.8)
 	else:
-		if is_front:
-			style.bg_color = Color(0.22, 0.15, 0.15, 0.7)  # Reddish for enemy front
-		else:
-			style.bg_color = Color(0.16, 0.12, 0.12, 0.5)  # Darker for enemy back
+		style.bg_color = Color(0.12, 0.14, 0.18, 0.6)
 	
-	style.border_color = Color(0.4, 0.4, 0.35, 0.6)
+	# Border
+	style.border_color = Color(0.3, 0.35, 0.4, 0.5)
 	style.set_border_width_all(1)
-	style.set_corner_radius_all(6)
-	panel.add_theme_stylebox_override("panel", style)
+	style.set_corner_radius_all(4)
 	
-	# Store lane metadata
-	panel.set_meta("lane_index", lane_index)
-	panel.set_meta("is_front", is_front)
-	panel.set_meta("is_player", is_player)
+	panel.add_theme_stylebox_override("panel", style)
 
 
-func get_scale_factor() -> float:
-	var viewport_size := DisplayServer.window_get_size()
-	var height_scale := viewport_size.y / REFERENCE_HEIGHT
-	return clampf(height_scale, 1.0, 3.0)
+func _apply_styling() -> void:
+	# Style turn button
+	if turn_button:
+		var btn_style := StyleBoxFlat.new()
+		btn_style.bg_color = Color(0.2, 0.5, 0.3)
+		btn_style.set_corner_radius_all(8)
+		btn_style.set_border_width_all(2)
+		btn_style.border_color = Color(0.3, 0.6, 0.4)
+		turn_button.add_theme_stylebox_override("normal", btn_style)
+		
+		var hover_style := btn_style.duplicate()
+		hover_style.bg_color = Color(0.25, 0.6, 0.35)
+		turn_button.add_theme_stylebox_override("hover", hover_style)
+		
+		var pressed_style := btn_style.duplicate()
+		pressed_style.bg_color = Color(0.15, 0.4, 0.25)
+		turn_button.add_theme_stylebox_override("pressed", pressed_style)
+	
+	# Style game over panel
+	if game_over_panel:
+		var panel_style := StyleBoxFlat.new()
+		panel_style.bg_color = Color(0.1, 0.1, 0.15, 0.95)
+		panel_style.set_corner_radius_all(16)
+		panel_style.set_border_width_all(3)
+		panel_style.border_color = Color(0.8, 0.7, 0.3)
+		game_over_panel.add_theme_stylebox_override("panel", panel_style)
+
+
+func _apply_responsive_fonts() -> void:
+	var scale_factor := _get_scale_factor()
+	
+	if mana_label:
+		mana_label.add_theme_font_size_override("font_size", int(16 * scale_factor))
+	if enemy_mana_label:
+		enemy_mana_label.add_theme_font_size_override("font_size", int(16 * scale_factor))
+	if player_health_label:
+		player_health_label.add_theme_font_size_override("font_size", int(18 * scale_factor))
+	if enemy_health_label:
+		enemy_health_label.add_theme_font_size_override("font_size", int(18 * scale_factor))
+	if player_deck_label:
+		player_deck_label.add_theme_font_size_override("font_size", int(14 * scale_factor))
+	if enemy_deck_label:
+		enemy_deck_label.add_theme_font_size_override("font_size", int(14 * scale_factor))
+	if turn_indicator:
+		turn_indicator.add_theme_font_size_override("font_size", int(20 * scale_factor))
+	if turn_button:
+		turn_button.add_theme_font_size_override("font_size", int(16 * scale_factor))
+	if winner_label:
+		winner_label.add_theme_font_size_override("font_size", int(32 * scale_factor))
+
+
+func _get_scale_factor() -> float:
+	var viewport_size := get_viewport().get_visible_rect().size
+	return viewport_size.y / REFERENCE_HEIGHT
 
 
 func _on_viewport_size_changed() -> void:
 	_apply_responsive_fonts()
 
 
-func _apply_responsive_fonts() -> void:
-	var scale_factor := get_scale_factor()
-	
-	if turn_indicator:
-		turn_indicator.add_theme_font_size_override("font_size", int(16 * scale_factor))
-	if player_health_label:
-		player_health_label.add_theme_font_size_override("font_size", int(14 * scale_factor))
-	if enemy_health_label:
-		enemy_health_label.add_theme_font_size_override("font_size", int(14 * scale_factor))
-	if mana_label:
-		mana_label.add_theme_font_size_override("font_size", int(12 * scale_factor))
-	if enemy_mana_label:
-		enemy_mana_label.add_theme_font_size_override("font_size", int(12 * scale_factor))
-	if player_deck_label:
-		player_deck_label.add_theme_font_size_override("font_size", int(12 * scale_factor))
-	if enemy_deck_label:
-		enemy_deck_label.add_theme_font_size_override("font_size", int(12 * scale_factor))
-	if winner_label:
-		winner_label.add_theme_font_size_override("font_size", int(24 * scale_factor))
-	if player_resource_label:
-		player_resource_label.add_theme_font_size_override("font_size", int(14 * scale_factor))
-	if enemy_resource_label:
-		enemy_resource_label.add_theme_font_size_override("font_size", int(14 * scale_factor))
-
-
-func _find_nodes_if_needed() -> void:
-	if not turn_button:
-		turn_button = find_child("TurnButton", true, false) as Button
-	if not mana_label:
-		mana_label = find_child("ManaLabel", true, false) as Label
-	if not enemy_mana_label:
-		enemy_mana_label = find_child("EnemyManaLabel", true, false) as Label
-	if not turn_indicator:
-		turn_indicator = find_child("TurnIndicator", true, false) as Label
-	if not player_health_label:
-		player_health_label = find_child("PlayerHealthLabel", true, false) as Label
-	if not enemy_health_label:
-		enemy_health_label = find_child("EnemyHealthLabel", true, false) as Label
-	if not player_deck_label:
-		player_deck_label = find_child("PlayerDeckLabel", true, false) as Label
-	if not enemy_deck_label:
-		enemy_deck_label = find_child("EnemyDeckLabel", true, false) as Label
-	if not game_over_panel:
-		game_over_panel = find_child("GameOverPanel", true, false) as Panel
-	if not winner_label:
-		winner_label = find_child("WinnerLabel", true, false) as Label
-	if not player_hand_container:
-		player_hand_container = find_child("PlayerHandContainer", true, false) as Control
-	if not enemy_hand_container:
-		enemy_hand_container = find_child("EnemyHandContainer", true, false) as Control
-	if not player_hero_area:
-		player_hero_area = find_child("PlayerHeroPanel", true, false) as Control
-	if not enemy_hero_area:
-		enemy_hero_area = find_child("EnemyHeroPanel", true, false) as Control
-	if not player_resource_label:
-		player_resource_label = find_child("PlayerResourceLabel", true, false) as Label
-	if not enemy_resource_label:
-		enemy_resource_label = find_child("EnemyResourceLabel", true, false) as Label
-	if not player_one:
-		player_one = find_child("PlayerOneController", true, false) as player_controller
-	if not player_two:
-		player_two = find_child("PlayerTwoController", true, false) as player_controller
-	
-	_setup_player_controllers()
-
-
-func _setup_player_controllers() -> void:
-	if player_one:
-		player_one.player_id = 0
-		player_one.hand_container = player_hand_container
-		player_one.enemy_hero_area = enemy_hero_area
-		player_one.hero_area = player_hero_area
-	
-	if player_two:
-		player_two.player_id = 1
-		player_two.hand_container = enemy_hand_container
-		player_two.enemy_hero_area = player_hero_area
-		player_two.hero_area = enemy_hero_area
-
-
-func _apply_styling() -> void:
-	# Style hand panels
-	_style_panel_container(find_child("PlayerHandPanel", true, false) as Control, Color(0.1, 0.12, 0.18, 0.7))
-	_style_panel_container(find_child("EnemyHandPanel", true, false) as Control, Color(0.18, 0.1, 0.1, 0.5))
-	
-	# Style resource panels
-	_style_panel_container(find_child("PlayerResourcePanel", true, false) as Control, Color(0.12, 0.12, 0.16, 0.8))
-	_style_panel_container(find_child("EnemyResourcePanel", true, false) as Control, Color(0.16, 0.12, 0.12, 0.8))
-	
-	# Style row containers
-	_style_panel_container(find_child("PlayerFrontRow", true, false) as Control, Color(0.1, 0.15, 0.12, 0.3))
-	_style_panel_container(find_child("PlayerBackRow", true, false) as Control, Color(0.08, 0.1, 0.09, 0.3))
-	_style_panel_container(find_child("EnemyFrontRow", true, false) as Control, Color(0.15, 0.1, 0.1, 0.3))
-	_style_panel_container(find_child("EnemyBackRow", true, false) as Control, Color(0.1, 0.08, 0.08, 0.3))
-	
-	# Style hero panels
-	_style_hero_panel(player_hero_area, true)
-	_style_hero_panel(enemy_hero_area, false)
-	
-	if turn_button:
-		_style_button(turn_button)
-	
-	if game_over_panel:
-		_style_game_over_panel()
-
-
-func _style_panel_container(container: Control, bg_color: Color) -> void:
-	if not container or not container is PanelContainer:
-		return
-	
-	var panel := container as PanelContainer
-	if not panel.has_theme_stylebox_override("panel"):
-		var style := StyleBoxFlat.new()
-		style.bg_color = bg_color
-		style.border_color = Color(0.4, 0.4, 0.3, 0.4)
-		style.set_border_width_all(1)
-		style.set_corner_radius_all(6)
-		panel.add_theme_stylebox_override("panel", style)
-
-
-func _style_hero_panel(hero: Control, is_player: bool) -> void:
-	if not hero or not hero is PanelContainer:
-		return
-	
-	var panel := hero as PanelContainer
-	if not panel.has_theme_stylebox_override("panel"):
-		var style := StyleBoxFlat.new()
-		if is_player:
-			if not selected_class.is_empty():
-				var class_color: Color = selected_class.get("color", Color(0.15, 0.2, 0.25))
-				style.bg_color = class_color.darkened(0.7)
-			else:
-				style.bg_color = Color(0.15, 0.2, 0.25)
-		else:
-			style.bg_color = Color(0.25, 0.15, 0.15)
-		style.border_color = Color(0.5, 0.45, 0.35)
-		style.set_border_width_all(2)
-		style.set_corner_radius_all(8)
-		panel.add_theme_stylebox_override("panel", style)
-
-
-func _style_button(button: Button) -> void:
-	if button.has_theme_stylebox_override("normal"):
-		return
-	
-	var normal_style := StyleBoxFlat.new()
-	normal_style.bg_color = Color(0.25, 0.3, 0.4)
-	normal_style.border_color = Color(0.5, 0.5, 0.6)
-	normal_style.set_border_width_all(2)
-	normal_style.set_corner_radius_all(5)
-	button.add_theme_stylebox_override("normal", normal_style)
-	
-	var hover_style := normal_style.duplicate()
-	hover_style.bg_color = Color(0.35, 0.4, 0.5)
-	button.add_theme_stylebox_override("hover", hover_style)
-	
-	var pressed_style := normal_style.duplicate()
-	pressed_style.bg_color = Color(0.2, 0.25, 0.35)
-	button.add_theme_stylebox_override("pressed", pressed_style)
-	
-	var disabled_style := normal_style.duplicate()
-	disabled_style.bg_color = Color(0.2, 0.2, 0.2)
-	button.add_theme_stylebox_override("disabled", disabled_style)
-	
-	button.add_theme_color_override("font_color", Color.WHITE)
-
-
-func _style_game_over_panel() -> void:
-	if not game_over_panel or game_over_panel.has_theme_stylebox_override("panel"):
-		return
-	
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.1, 0.1, 0.1, 0.95)
-	style.border_color = Color(0.8, 0.7, 0.2)
-	style.set_border_width_all(4)
-	style.set_corner_radius_all(15)
-	game_over_panel.add_theme_stylebox_override("panel", style)
-
-
 func _connect_signals() -> void:
 	GameManager.turn_started.connect(_on_turn_started)
 	GameManager.mana_changed.connect(_on_mana_changed)
 	GameManager.game_ended.connect(_on_game_ended)
+	GameManager.health_changed.connect(_on_health_changed)
 	GameManager.card_drawn.connect(_on_card_drawn)
-	GameManager.entity_died.connect(_on_entity_died)
-	GameManager.resource_changed.connect(_on_resource_changed)
-	# Mulligan signals
-	if not GameManager.mulligan_started.is_connected(_on_mulligan_started):
-		GameManager.mulligan_started.connect(_on_mulligan_started)
-	if not GameManager.all_mulligans_complete.is_connected(_on_all_mulligans_complete):
-		GameManager.all_mulligans_complete.connect(_on_all_mulligans_complete)
 	
-	if turn_button:
-		if not turn_button.pressed.is_connected(_on_turn_button_pressed):
-			turn_button.pressed.connect(_on_turn_button_pressed)
-		turn_button.text = "End Turn"
-		turn_button.visible = true
+	if turn_button and not turn_button.pressed.is_connected(_on_turn_button_pressed):
+		turn_button.pressed.connect(_on_turn_button_pressed)
+	
+	turn_button.text = "End Turn"
+	turn_button.visible = true
 
 
-func _setup_test_game() -> void:
+func _setup_game() -> void:
 	print("[MainGame] Setting up game...")
 	
 	var player_deck: Array[CardData] = []
@@ -468,29 +264,13 @@ func _setup_test_game() -> void:
 	GameManager.set_player_deck(0, player_deck)
 	GameManager.set_player_deck(1, enemy_deck)
 	
-	# Setup Player 1 (User) Class
-	if not selected_class.is_empty():
-		var class_health: int = selected_class.get("health", 30)
-		var c_name: String = selected_class.get("name", "Neutral")
-		GameManager.players[0]["hero_health"] = class_health
-		GameManager.players[0]["hero_max_health"] = class_health
-		GameManager.set_player_class(0, c_name)
-	else:
-		GameManager.set_player_class(0, "Neutral")
-		
-	# Setup Player 2 (Enemy)
-	GameManager.set_player_class(1, "Technical")
-	
 	GameManager.start_game()
-	
-	# Initial UI update for resources
-	_update_resource_display(0, 0, 0)
-	_update_resource_display(1, 0, 0)
 
 
 func _build_deck_from_selection(card_ids: Array) -> Array[CardData]:
 	var deck: Array[CardData] = []
 	
+	# Map of card IDs to resource paths
 	var card_paths := {
 		"wisp": "res://data/Cards/wisp.tres",
 		"bat": "res://data/Cards/Bat.tres",
@@ -543,159 +323,131 @@ func _create_test_deck() -> Array[CardData]:
 				card_resources.append(card)
 	
 	if card_resources.is_empty():
-		return deck
+		push_warning("[MainGame] No card resources found - creating basic test cards")
+		card_resources = _create_basic_test_cards()
 	
-	for i in range(30):
-		var base_card: CardData = card_resources[i % card_resources.size()]
-		deck.append(base_card.duplicate_for_play())
+	# Build a 30-card deck
+	while deck.size() < 30 and not card_resources.is_empty():
+		for card in card_resources:
+			if deck.size() >= 30:
+				break
+			deck.append(card.duplicate_for_play())
+			# Add second copy for non-legendaries
+			if deck.size() < 30 and card.rarity != CardData.Rarity.LEGENDARY:
+				deck.append(card.duplicate_for_play())
 	
 	return deck
 
 
+func _create_basic_test_cards() -> Array[CardData]:
+	var cards: Array[CardData] = []
+	
+	# Create some basic test cards programmatically
+	var wisp := CardData.new()
+	wisp.id = "test_wisp"
+	wisp.card_name = "Wisp"
+	wisp.cost = 0
+	wisp.attack = 1
+	wisp.health = 1
+	wisp.card_type = CardData.CardType.MINION
+	cards.append(wisp)
+	
+	var soldier := CardData.new()
+	soldier.id = "test_soldier"
+	soldier.card_name = "Soldier"
+	soldier.cost = 2
+	soldier.attack = 2
+	soldier.health = 3
+	soldier.card_type = CardData.CardType.MINION
+	cards.append(soldier)
+	
+	var knight := CardData.new()
+	knight.id = "test_knight"
+	knight.card_name = "Knight"
+	knight.cost = 4
+	knight.attack = 4
+	knight.health = 5
+	knight.card_type = CardData.CardType.MINION
+	knight.keywords = ["taunt"]
+	cards.append(knight)
+	
+	var champion := CardData.new()
+	champion.id = "test_champion"
+	champion.card_name = "Champion"
+	champion.cost = 6
+	champion.attack = 6
+	champion.health = 6
+	champion.card_type = CardData.CardType.MINION
+	champion.keywords = ["charge"]
+	cards.append(champion)
+	
+	return cards
+
+
+## =============================================================================
+## SIGNAL HANDLERS
+## =============================================================================
+
 func _on_turn_started(player_id: int) -> void:
-	if turn_indicator:
-		if player_id == 0:
-			turn_indicator.text = "Your Turn"
-			turn_indicator.add_theme_color_override("font_color", Color.GREEN)
-		else:
-			turn_indicator.text = "Enemy Turn"
-			turn_indicator.add_theme_color_override("font_color", Color.RED)
-	
-	if turn_button:
-		turn_button.disabled = (player_id != 0)
-	
-	_update_health_display()
+	_update_turn_indicator(player_id)
 	_update_deck_counts()
+	
+	# Enable/disable turn button based on whose turn it is
+	if turn_button:
+		turn_button.disabled = (player_id != 0)  # Only player 1 can click
 
 
 func _on_mana_changed(player_id: int, current: int, maximum: int) -> void:
-	var mana_text := "%d / %d" % [current, maximum]
-	
 	if player_id == 0 and mana_label:
-		mana_label.text = mana_text
+		mana_label.text = "Mana: %d/%d" % [current, maximum]
 	elif player_id == 1 and enemy_mana_label:
-		enemy_mana_label.text = mana_text
+		enemy_mana_label.text = "Mana: %d/%d" % [current, maximum]
+
+
+func _on_health_changed(player_id: int, current: int, maximum: int) -> void:
+	if player_id == 0 and player_health_label:
+		player_health_label.text = "HP: %d/%d" % [current, maximum]
+	elif player_id == 1 and enemy_health_label:
+		enemy_health_label.text = "HP: %d/%d" % [current, maximum]
 
 
 func _on_card_drawn(_player_id: int, _card: CardData) -> void:
 	_update_deck_counts()
 
 
-func _on_entity_died(_player_id: int, _entity: Node) -> void:
-	_update_health_display()
+func _on_game_ended(winner_id: int) -> void:
+	if game_over_panel:
+		game_over_panel.visible = true
+	if winner_label:
+		if winner_id == 0:
+			winner_label.text = "Victory!"
+		else:
+			winner_label.text = "Defeat!"
 
 
-func _update_health_display() -> void:
-	if player_health_label:
-		player_health_label.text = "HP: %d" % GameManager.get_hero_health(0)
-	if enemy_health_label:
-		enemy_health_label.text = "HP: %d" % GameManager.get_hero_health(1)
+func _on_turn_button_pressed() -> void:
+	if GameManager.is_player_turn(0):
+		GameManager.end_turn()
+
+
+func _update_turn_indicator(player_id: int) -> void:
+	if turn_indicator:
+		if player_id == 0:
+			turn_indicator.text = "Your Turn"
+			turn_indicator.add_theme_color_override("font_color", Color(0.3, 0.8, 0.4))
+		else:
+			turn_indicator.text = "Enemy Turn"
+			turn_indicator.add_theme_color_override("font_color", Color(0.8, 0.3, 0.3))
 
 
 func _update_deck_counts() -> void:
 	if player_deck_label:
-		player_deck_label.text = "Deck: %d" % GameManager.get_deck_size(0)
+		player_deck_label.text = "Deck: %d" % GameManager.get_deck_count(0)
 	if enemy_deck_label:
-		enemy_deck_label.text = "Deck: %d" % GameManager.get_deck_size(1)
-
-
-func _on_turn_button_pressed() -> void:
-	if player_one:
-		player_one.request_end_turn()
-
-
-func _on_game_ended(winner_id: int) -> void:
-	if game_over_panel:
-		game_over_panel.visible = true
-		if winner_label:
-			if winner_id == 0:
-				winner_label.text = "Victory!"
-				winner_label.add_theme_color_override("font_color", Color(0.3, 1.0, 0.3))
-				
-				# Wait 2 seconds so the player sees "Victory!", then go to loot screen
-				var timer = get_tree().create_timer(2.0)
-				await timer.timeout
-				get_tree().change_scene_to_file("res://scenes/victory_selection.tscn")
-				
-			else:
-				winner_label.text = "Defeat!"
-				winner_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
-				
-				# Wait 2 seconds, then handle defeat
-				var timer = get_tree().create_timer(2.0)
-				await timer.timeout
-				_handle_defeat()
-
-
-## Handle player defeat - return to week runner or game over
-func _handle_defeat() -> void:
-	# Check if we're in a weekly run
-	if GameManager.has_meta("return_to_week_runner") and GameManager.get_meta("return_to_week_runner"):
-		# Clear the flag
-		GameManager.set_meta("return_to_week_runner", false)
-		
-		# Advance the day even on defeat (the day is spent)
-		var current_day: int = GameManager.get_meta("current_day_index") if GameManager.has_meta("current_day_index") else 0
-		current_day += 1
-		GameManager.set_meta("current_day_index", current_day)
-		
-		print("[MainGame] Defeat! Returning to week runner, advancing to day %d" % (current_day + 1))
-		
-		# Reset game state
-		GameManager.reset_game()
-		
-		get_tree().change_scene_to_file("res://scenes/week_runner.tscn")
-	else:
-		# Not in weekly run - go to start screen
-		GameManager.reset_game()
-		get_tree().change_scene_to_file("res://scenes/start_screen.tscn")
-
-func _on_resource_changed(player_id: int, current: int, max_val: int) -> void:
-	_update_resource_display(player_id, current, max_val)
-
-
-func _update_resource_display(player_id: int, current: int, max_val: int) -> void:
-	var lbl = player_resource_label if player_id == 0 else enemy_resource_label
-	if not lbl: 
-		return
-	
-	var class_id = GameManager.players[player_id]["class_id"]
-	var resource_name = ""
-	
-	match class_id:
-		"cute": resource_name = "Fans"
-		"technical": resource_name = "Battery"
-		"primal": resource_name = "Hunger"
-		"other": resource_name = "Omens"
-		"ace": resource_name = "Spirit"
-		_: 
-			lbl.text = ""
-			return
-
-	if max_val > 900:  # Unlimited
-		lbl.text = "%s: %d" % [resource_name, current]
-	else:
-		lbl.text = "%s: %d/%d" % [resource_name, current, max_val]
+		enemy_deck_label.text = "Deck: %d" % GameManager.get_deck_count(1)
 
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed:
-		if event.keycode == KEY_SPACE:
-			if GameManager.is_player_turn(0):
-				_on_turn_button_pressed()
-		elif event.keycode == KEY_D:
-			if GameManager.is_player_turn(0):
-				GameManager._draw_card(0)
-		elif event.keycode == KEY_ESCAPE:
-			GameManager.reset_game()
+		if event.keycode == KEY_ESCAPE:
 			get_tree().change_scene_to_file("res://scenes/start_screen.tscn")
-		elif event.keycode == KEY_K:
-			_debug_kill_enemy()
-
-
-## Debug function to instantly win the game
-func _debug_kill_enemy() -> void:
-	print("[MainGame] DEBUG: Insta-kill triggered!")
-	GameManager.players[1]["hero_health"] = 0
-	_update_health_display()
-	GameManager._check_hero_death(1)
