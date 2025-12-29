@@ -48,8 +48,7 @@ func _load_card_database() -> void:
 				var card_data = load(card_path) as CardData
 				if card_data:
 					# Only add non-token cards (check via tags if needed)
-					var dominated_by_tokens = card_data.tags.has("Token") if card_data.tags else false
-					if not dominated_by_tokens:
+					if not card_data.has_keyword("Token"):
 						_all_cards.append(card_data)
 			file_name = dir.get_next()
 		dir.list_dir_end()

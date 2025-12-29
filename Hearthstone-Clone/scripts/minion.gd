@@ -88,7 +88,6 @@ const BASE_FONT_SIZES := {
 @onready var health_label: Label = $Frame/HealthIcon/HealthLabel
 @onready var damage_label: Label = $Frame/DamageLabel
 @onready var sleeping_icon: Label = $Frame/SleepingIcon
-@onready var row_indicator: Label = $Frame/RowIndicator
 
 ## Optional: Huddle indicator
 var huddle_indicator: ColorRect = null
@@ -131,8 +130,6 @@ func _setup_responsive_scaling() -> void:
 		damage_label.add_theme_font_size_override("font_size", int(BASE_FONT_SIZES["damage"] * scale_factor))
 	if sleeping_icon:
 		sleeping_icon.add_theme_font_size_override("font_size", int(BASE_FONT_SIZES["sleeping"] * scale_factor))
-	if row_indicator:
-		row_indicator.add_theme_font_size_override("font_size", int(BASE_FONT_SIZES["row_indicator"] * scale_factor))
 
 
 func _apply_default_styling() -> void:
@@ -190,15 +187,6 @@ func _parse_keywords() -> void:
 	has_lethal = card_data.has_keyword("Lethal")
 	has_persistent = card_data.has_keyword("Persistent")
 	has_snipe = card_data.has_keyword("Snipe")
-	
-	# NEW KEYWORDS
-	has_bully = card_data.has_keyword("Bully")
-	has_overclock = card_data.has_keyword("Overclock")
-	overclock_cost = card_data.get_overclock_cost()
-	has_huddle = card_data.has_keyword("Huddle")
-	has_ritual = card_data.has_keyword("Ritual")
-	ritual_cost = card_data.get_ritual_cost()
-	has_fated = card_data.has_keyword("Fated")
 	
 	if has_charge:
 		just_played = false

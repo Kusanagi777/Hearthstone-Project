@@ -90,8 +90,8 @@ func _on_card_drawn(draw_player_id: int, card: CardData) -> void:
 	var card_ui_instance = card_ui_scene.instantiate()
 	hand_container.add_child(card_ui_instance)
 	
-	if card_ui_instance.has_method("initialize"):
-		card_ui_instance.initialize(card, player_id)
+	if card_ui_instance.has_method("setup"):
+		card_ui_instance.setup(card, player_id)
 	
 	if card_ui_instance.has_signal("card_drag_started"):
 		card_ui_instance.card_drag_started.connect(_on_card_drag_started)
@@ -162,7 +162,12 @@ func _can_place_huddle_in_lane(lane: Control) -> bool:
 
 
 func _try_play_card_to_lane(card_ui_instance: Control, lane_index: int, is_front: bool) -> bool:
-	var card: CardData = card_ui_instance.card_data
+	# Validate card_data exists
+	if not card_ui_instance or not card_ui_instance.card_data:
+		push_error("_try_play_card_to_lane: card_ui has no card_data")
+		return false
+	
+	var card_data: CardData = card_ui_instance.card_data
 	
 	var target_lane: Control
 	if is_front:
@@ -181,20 +186,20 @@ func _try_play_card_to_lane(card_ui_instance: Control, lane_index: int, is_front
 	# Check if lane is occupied
 	if not lane_empty:
 		# Only Huddle minions can be played in occupied lanes
-		if not card.has_keyword("Huddle"):
+		if not card_data.has_keyword("Huddle"):
 			print("[PlayerController %d] Lane %d %s is occupied (need Huddle)" % [player_id, lane_index, "front" if is_front else "back"])
 			return false
 	
-	if GameManager.play_card(player_id, card):
-		_animate_card_play(card_ui_instance)
-		
-		if card.card_type == CardData.CardType.MINION:
-			await get_tree().create_timer(0.2).timeout
-			_spawn_minion_in_lane(card, lane_index, is_front, existing_minion)
-		
-		return true
+	if not GameManager.play_card(player_id, card_data):
+		return false
 	
-	return false
+	_animate_card_play(card_ui_instance)
+	
+	if card_data.card_type == CardData.CardType.MINION:
+		await get_tree().create_timer(0.2).timeout
+		_spawn_minion_in_lane(card_data, lane_index, is_front, existing_minion)
+	
+	return true
 
 
 func _animate_card_play(card_ui_instance: Control) -> void:
@@ -351,26 +356,6 @@ func _animate_persistent_respawn(minion_instance: Node) -> void:
 	# Flash golden to indicate Persistent triggered
 	tween.tween_property(minion_instance, "modulate", Color(1.2, 1.0, 0.5), 0.2)
 	tween.tween_property(minion_instance, "modulate", Color.WHITE, 0.2)
-
-
-func _on_huddle_promoted(promoted_player_id: int, promoted_minion: Node, lane_index: int, is_front: bool) -> void:
-	if promoted_player_id != player_id:
-		return
-	
-	print("[PlayerController %d] Huddle minion promoted: %s" % [player_id, promoted_minion.card_data.card_name])
-	
-	# Connect signals to the newly promoted minion
-	if promoted_minion.has_signal("minion_clicked") and not promoted_minion.minion_clicked.is_connected(_on_minion_clicked):
-		promoted_minion.minion_clicked.connect(_on_minion_clicked)
-	if promoted_minion.has_signal("minion_targeted") and not promoted_minion.minion_targeted.is_connected(_on_minion_targeted):
-		promoted_minion.minion_targeted.connect(_on_minion_targeted)
-	if promoted_minion.has_signal("minion_drag_started") and not promoted_minion.minion_drag_started.is_connected(_on_minion_drag_started):
-		promoted_minion.minion_drag_started.connect(_on_minion_drag_started)
-	
-	# Animate promotion
-	var tween := create_tween()
-	tween.tween_property(promoted_minion, "modulate", Color(0.5, 1.0, 0.8), 0.2)
-	tween.tween_property(promoted_minion, "modulate", Color.WHITE, 0.2)
 
 
 ## ============================================================================

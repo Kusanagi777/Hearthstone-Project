@@ -136,6 +136,8 @@ func _flush_deferred_draws() -> void:
 		card_drawn.emit(draw_data["player_id"], draw_data["card_data"])
 	_deferred_draws.clear()
 
+func get_opponent_id(player_id: int) -> int:
+	return 1 - player_id
 
 ## =============================================================================
 ## DECK MANAGEMENT
@@ -290,6 +292,9 @@ func _draw_card(player_id: int) -> void:
 
 ## Check if a card can be played
 func can_play_card(player_id: int, card: CardData) -> bool:
+	if not card:
+		push_error("can_play_card called with null card")
+		return false
 	if player_id != active_player:
 		return false
 	if current_phase != GamePhase.PLAY:
@@ -363,7 +368,35 @@ func get_board(player_id: int) -> Array:
 ## =============================================================================
 ## COMBAT SYSTEM
 ## =============================================================================
-
+# Check if a target minion is valid for attack (respects Taunt)
+func is_valid_attack_target(attacker_player_id: int, target: Node) -> bool:
+	if not target or not is_instance_valid(target):
+		return false
+	
+	# Can't attack your own minions
+	if target.owner_id == attacker_player_id:
+		return false
+	
+	# Can't target Hidden minions
+	if target.has_hidden:
+		return false
+	
+	# Check if there's a Taunt minion in the same row that must be targeted first
+	var defender_player_id: int = target.owner_id
+	var board: Array = players[defender_player_id]["board"]
+	
+	# Find all Taunt minions in the same row as the target
+	var same_row_taunts: Array = []
+	for minion in board:
+		if minion and is_instance_valid(minion):
+			if minion.is_front_row == target.is_front_row and minion.has_taunt:
+				same_row_taunts.append(minion)
+	
+	# If there are Taunt minions in this row, target must be one of them
+	if same_row_taunts.size() > 0 and not target.has_taunt:
+		return false
+	
+	return true
 ## Execute combat between two minions
 func execute_combat(attacker: Node, defender: Node) -> void:
 	if not is_instance_valid(attacker) or not is_instance_valid(defender):

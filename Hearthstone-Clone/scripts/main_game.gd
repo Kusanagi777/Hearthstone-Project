@@ -73,7 +73,7 @@ func _connect_signals() -> void:
 func _find_ui_references() -> void:
 	# Find labels
 	if not player_mana_label:
-		player_mana_label = find_child("PlayerManaLabel", true, false)
+		player_mana_label = find_child("ManaLabel", true, false)
 	if not enemy_mana_label:
 		enemy_mana_label = find_child("EnemyManaLabel", true, false)
 	if not player_health_label:
@@ -175,7 +175,12 @@ func _setup_lanes() -> void:
 		push_warning("Expected %d player back lanes, got %d" % [LANES_PER_ROW, player_back_lanes.size()])
 
 
-func _style_lane_panel(panel: PanelContainer, is_player: bool, is_front: bool, _index: int) -> void:
+func _style_lane_panel(panel: PanelContainer, is_player: bool, is_front: bool, index: int) -> void:
+	# SET THE METADATA - This is what was missing!
+	panel.set_meta("lane_index", index)
+	panel.set_meta("is_front", is_front)
+	panel.set_meta("is_player", is_player)
+	
 	var style := StyleBoxFlat.new()
 	
 	# Different colors for player vs enemy, front vs back
@@ -357,6 +362,29 @@ func _on_game_over(winner_id: int) -> void:
 			winner_label.text = "Victory!"
 		else:
 			winner_label.text = "Defeat!"
+	
+	# Wait a moment then transition
+	await get_tree().create_timer(2.0).timeout
+	
+	if winner_id == 0:
+		# Player won - go to victory/reward selection
+		get_tree().change_scene_to_file("res://scenes/victory_selection.tscn")
+	else:
+		# Player lost - check if we should return to week runner
+		if GameManager.has_meta("return_to_week_runner") and GameManager.get_meta("return_to_week_runner"):
+			GameManager.set_meta("return_to_week_runner", false)
+			
+			# Advance the day even on loss
+			var current_day: int = GameManager.get_meta("current_day_index") if GameManager.has_meta("current_day_index") else 0
+			current_day += 1
+			GameManager.set_meta("current_day_index", current_day)
+			
+			GameManager.reset_game()
+			get_tree().change_scene_to_file("res://scenes/week_runner.tscn")
+		else:
+			# Not in schedule mode - return to start screen
+			GameManager.reset_game()
+			get_tree().change_scene_to_file("res://scenes/start_screen.tscn")
 
 
 func _on_turn_button_pressed() -> void:

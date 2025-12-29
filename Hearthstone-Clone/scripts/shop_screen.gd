@@ -140,8 +140,6 @@ func _load_card_database() -> void:
 						icon = "👤"
 					CardData.CardType.ACTION:
 						icon = "✨"
-					CardData.CardType.LOCATION:
-						icon = "⚔️"
 				
 				all_cards.append({
 					"card_data": card_data,
