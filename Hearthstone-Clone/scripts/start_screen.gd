@@ -10,6 +10,7 @@ const TEST_DECK_SIZE := 15
 @onready var start_button: Button = $CenterContainer/VBoxContainer/MenuButtons/StartButton
 @onready var options_button: Button = $CenterContainer/VBoxContainer/MenuButtons/OptionsButton
 @onready var exit_button: Button = $CenterContainer/VBoxContainer/MenuButtons/ExitButton
+@onready var shop_test: Button = $CenterContainer/VBoxContainer/MenuButtons/ShopTest
 
 ## Reference resolution for scaling
 const REFERENCE_HEIGHT := 720.0
@@ -67,7 +68,7 @@ func _connect_signals() -> void:
 	if deck_build_button and deck_build_button is Button:
 		deck_build_button.pressed.connect(_on_deck_build_pressed)
 	
-	var shop_button = find_child("Shop Test", true, false)
+	var shop_button = find_child("ShopTest", true, false)
 	if shop_button and shop_button is Button:
 		shop_button.pressed.connect(_on_shop_pressed)
 
@@ -249,8 +250,8 @@ func _on_options_pressed() -> void:
 
 
 func _on_shop_pressed() -> void:
-	if ResourceLoader.exists("res://scenes/shop.tscn"):
-		get_tree().change_scene_to_file("res://scenes/shop.tscn")
+	if ResourceLoader.exists("res://scenes/shop_screen.tscn"):
+		get_tree().change_scene_to_file("res://scenes/shop_screen.tscn")
 	else:
 		print("[StartScreen] Shop scene not found")
 

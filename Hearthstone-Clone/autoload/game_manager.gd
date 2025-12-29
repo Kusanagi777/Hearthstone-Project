@@ -53,6 +53,7 @@ const MAX_BOARD_SIZE: int = 7
 const MAX_HAND_SIZE: int = 10
 const STARTING_HEALTH: int = 30
 
+
 ## =============================================================================
 ## STATE VARIABLES
 ## =============================================================================
@@ -104,7 +105,11 @@ func _initialize_player_data() -> void:
 			"board": [] as Array[Node],
 			"graveyard": [] as Array[CardData],
 			"fatigue_counter": 0,
-			"cards_drawn_this_turn": [] as Array[String]
+			"cards_drawn_this_turn": [] as Array[String],
+			# Class resource (Battery, Hunger, Spirit, etc.)
+			"class_resource": 0,
+			"max_class_resource": 10,
+			"class_resource_type": ""  # Set based on class selection
 		})
 
 
@@ -118,6 +123,10 @@ func reset_game() -> void:
 	active_player = PLAYER_ONE
 	current_phase = GamePhase.IDLE
 	_initialize_player_data()
+	
+	# Clear modifiers on game reset
+	if ModifierManager:
+		ModifierManager.clear_all_modifiers()
 
 
 ## Called by PlayerController when it's ready
@@ -133,66 +142,33 @@ func _check_controllers_ready() -> void:
 
 func _flush_deferred_draws() -> void:
 	for draw_data in _deferred_draws:
-		card_drawn.emit(draw_data["player_id"], draw_data["card_data"])
+		card_drawn.emit(draw_data["player_id"], draw_data["card"])
 	_deferred_draws.clear()
-
-func get_opponent_id(player_id: int) -> int:
-	return 1 - player_id
-
-## =============================================================================
-## DECK MANAGEMENT
-## =============================================================================
-
-## Setup a player's deck (called before game starts)
-func set_player_deck(player_id: int, deck: Array[CardData]) -> void:
-	if player_id < 0 or player_id > 1:
-		push_error("Invalid player_id: %d" % player_id)
-		return
-	
-	var runtime_deck: Array[CardData] = []
-	for card in deck:
-		runtime_deck.append(card.duplicate_for_play())
-	
-	players[player_id]["deck"] = runtime_deck
-	_shuffle_deck(player_id)
-
-
-func _shuffle_deck(player_id: int) -> void:
-	var deck: Array = players[player_id]["deck"]
-	for i in range(deck.size() - 1, 0, -1):
-		var j := randi() % (i + 1)
-		var temp = deck[i]
-		deck[i] = deck[j]
-		deck[j] = temp
 
 
 ## =============================================================================
 ## GAME FLOW
 ## =============================================================================
 
-## Start a new game - should be called after scene is fully loaded
 func start_game() -> void:
 	if _game_initialized:
-		push_warning("Game already initialized")
 		return
 	
 	_game_initialized = true
-	turn_number = 0
-	active_player = PLAYER_ONE
 	current_phase = GamePhase.STARTING
-	_first_turn = [true, true]
 	
-	print("[GameManager] Starting game...")
+	# Shuffle decks
+	for i in range(2):
+		players[i]["deck"].shuffle()
 	
 	# Draw starting hands
-	for player_id in range(2):
-		for i in range(STARTING_HAND_SIZE):
-			_draw_card(player_id)
+	for i in range(2):
+		for j in range(STARTING_HAND_SIZE):
+			_draw_card(i)
 	
 	game_started.emit()
 	
 	# Start first turn
-	await get_tree().process_frame
 	_start_turn(PLAYER_ONE)
 
 
@@ -203,9 +179,14 @@ func _start_turn(player_id: int) -> void:
 	
 	print("[GameManager] === Turn %d - Player %d ===" % [turn_number, player_id])
 	
-	# Increment max mana (up to cap)
+	# Increment max mana (up to cap) - WITH MODIFIER
 	var p := players[player_id]
-	p["max_mana"] = mini(p["max_mana"] + 1, MAX_MANA_CAP)
+	var base_mana_gain := 1
+	var modified_mana_gain := base_mana_gain
+	if ModifierManager:
+		modified_mana_gain = ModifierManager.apply_mana_gain_modifiers(base_mana_gain, player_id)
+	
+	p["max_mana"] = mini(p["max_mana"] + modified_mana_gain, MAX_MANA_CAP)
 	p["current_mana"] = p["max_mana"]
 	
 	# Clear cards drawn this turn tracking
@@ -223,6 +204,11 @@ func _start_turn(player_id: int) -> void:
 	_reset_minion_attacks(player_id)
 	
 	current_phase = GamePhase.PLAY
+	
+	# MODIFIER HOOK: Trigger turn start
+	if ModifierManager:
+		ModifierManager.trigger_turn_start(player_id)
+	
 	turn_started.emit(player_id)
 
 
@@ -231,6 +217,11 @@ func end_turn() -> void:
 		return
 	
 	current_phase = GamePhase.END_TURN
+	
+	# MODIFIER HOOK: Trigger turn end
+	if ModifierManager:
+		ModifierManager.trigger_turn_end(active_player)
+	
 	turn_ended.emit(active_player)
 	
 	# Switch to other player
@@ -266,77 +257,176 @@ func _draw_card(player_id: int) -> void:
 		return
 	
 	if hand.size() >= MAX_HAND_SIZE:
-		# Hand is full - burn the card
-		var burned_card: CardData = deck.pop_front()
-		print("[GameManager] Player %d hand full - burned %s" % [player_id, burned_card.card_name])
+		# Overdraw - burn card
+		var burned_card: CardData = deck.pop_back()
+		p["graveyard"].append(burned_card)
+		print("[GameManager] Player %d hand full, burned: %s" % [player_id, burned_card.card_name])
+		
+		# MODIFIER HOOK: Card discarded (burned)
+		if ModifierManager:
+			ModifierManager.trigger_card_discarded(burned_card, player_id)
+		
 		card_discarded.emit(player_id, burned_card)
 		return
 	
-	var card: CardData = deck.pop_front()
-	hand.append(card)
+	var drawn_card: CardData = deck.pop_back()
 	
-	# Track for Fated keyword
-	p["cards_drawn_this_turn"].append(card.get_runtime_id())
+	# Track that this card was drawn this turn (for Fated)
+	p["cards_drawn_this_turn"].append(drawn_card.get_runtime_id())
 	
-	print("[GameManager] Player %d drew %s" % [player_id, card.card_name])
+	hand.append(drawn_card)
+	
+	# MODIFIER HOOK: Card drawn
+	if ModifierManager:
+		ModifierManager.trigger_card_drawn(drawn_card, player_id)
 	
 	if _controllers_ready:
-		card_drawn.emit(player_id, card)
+		card_drawn.emit(player_id, drawn_card)
 	else:
-		_deferred_draws.append({"player_id": player_id, "card_data": card})
+		_deferred_draws.append({"player_id": player_id, "card": drawn_card})
+	
+	print("[GameManager] Player %d drew: %s" % [player_id, drawn_card.card_name])
+
+
+## =============================================================================
+## MANA MANAGEMENT
+## =============================================================================
+
+func get_current_mana(player_id: int) -> int:
+	return players[player_id]["current_mana"]
+
+
+func get_max_mana(player_id: int) -> int:
+	return players[player_id]["max_mana"]
+
+
+func spend_mana(player_id: int, amount: int) -> bool:
+	var p := players[player_id]
+	if p["current_mana"] >= amount:
+		p["current_mana"] -= amount
+		mana_changed.emit(player_id, p["current_mana"], p["max_mana"])
+		return true
+	return false
+
+
+func add_mana(player_id: int, amount: int) -> void:
+	var p := players[player_id]
+	p["current_mana"] = mini(p["current_mana"] + amount, p["max_mana"])
+	mana_changed.emit(player_id, p["current_mana"], p["max_mana"])
+
+
+## Get the effective cost of a card (with modifiers applied)
+func get_card_cost(card: CardData, player_id: int) -> int:
+	var base_cost := card.cost
+	if ModifierManager:
+		return ModifierManager.apply_card_cost_modifiers(card, base_cost, player_id)
+	return base_cost
+
+
+## =============================================================================
+## CLASS RESOURCE MANAGEMENT
+## =============================================================================
+
+func get_class_resource(player_id: int) -> int:
+	return players[player_id]["class_resource"]
+
+
+func get_max_class_resource(player_id: int) -> int:
+	return players[player_id]["max_class_resource"]
+
+
+func get_class_resource_type(player_id: int) -> String:
+	return players[player_id]["class_resource_type"]
+
+
+func add_class_resource(player_id: int, amount: int) -> void:
+	var p := players[player_id]
+	var resource_type: String = p["class_resource_type"]
+	
+	# MODIFIER HOOK: Modify class resource gain
+	var modified_amount := amount
+	if ModifierManager and not resource_type.is_empty():
+		modified_amount = ModifierManager.apply_class_resource_gain_modifiers(resource_type, amount, player_id)
+	
+	p["class_resource"] = mini(p["class_resource"] + modified_amount, p["max_class_resource"])
+
+
+func spend_class_resource(player_id: int, amount: int) -> bool:
+	var p := players[player_id]
+	var resource_type: String = p["class_resource_type"]
+	
+	# MODIFIER HOOK: Modify class resource cost
+	var modified_amount := amount
+	if ModifierManager and not resource_type.is_empty():
+		modified_amount = ModifierManager.apply_class_resource_cost_modifiers(resource_type, amount, player_id)
+	
+	if p["class_resource"] >= modified_amount:
+		p["class_resource"] -= modified_amount
+		return true
+	return false
+
+
+func set_class_resource_type(player_id: int, resource_type: String) -> void:
+	players[player_id]["class_resource_type"] = resource_type
 
 
 ## =============================================================================
 ## CARD PLAYING
 ## =============================================================================
 
-## Check if a card can be played
 func can_play_card(player_id: int, card: CardData) -> bool:
-	if not card:
-		push_error("can_play_card called with null card")
+	if not is_player_turn(player_id):
 		return false
-	if player_id != active_player:
+	
+	# Check mana cost (with modifiers)
+	var effective_cost := get_card_cost(card, player_id)
+	if players[player_id]["current_mana"] < effective_cost:
 		return false
-	if current_phase != GamePhase.PLAY:
-		return false
-	if players[player_id]["current_mana"] < card.cost:
-		return false
+	
+	# MODIFIER HOOK: Check if modifiers prevent playing this card
+	if ModifierManager:
+		if not ModifierManager.can_play_card(card, player_id):
+			return false
+	
 	return true
 
 
-## Play a card from hand
-func play_card(player_id: int, card: CardData) -> bool:
+func play_card(player_id: int, card: CardData, target: Variant = null) -> bool:
 	if not can_play_card(player_id, card):
 		return false
 	
 	var p := players[player_id]
-	var hand: Array = p["hand"]
 	
-	# Find and remove from hand
-	var card_index := -1
-	for i in range(hand.size()):
-		if hand[i].get_runtime_id() == card.get_runtime_id():
-			card_index = i
-			break
-	
-	if card_index == -1:
-		push_error("Card not found in hand")
-		return false
-	
-	hand.remove_at(card_index)
+	# Get modified cost
+	var effective_cost := get_card_cost(card, player_id)
 	
 	# Spend mana
-	p["current_mana"] -= card.cost
-	mana_changed.emit(player_id, p["current_mana"], p["max_mana"])
+	if not spend_mana(player_id, effective_cost):
+		return false
 	
-	# Check Fated trigger
-	if card.has_keyword("fated"):
-		if p["cards_drawn_this_turn"].has(card.get_runtime_id()):
+	# Remove from hand
+	var hand: Array = p["hand"]
+	var index := hand.find(card)
+	if index != -1:
+		hand.remove_at(index)
+	
+	# MODIFIER HOOK: Card played (before effects)
+	if ModifierManager:
+		ModifierManager.trigger_card_played(card, player_id, target)
+	
+	# Check Fated keyword
+	if card.has_keyword("Fated"):
+		if card.get_runtime_id() in p["cards_drawn_this_turn"]:
 			print("[GameManager] Fated triggered for %s!" % card.card_name)
 			# Fated effect will be handled by minion/effect system
 	
 	card_played.emit(player_id, card)
-	print("[GameManager] Player %d played %s" % [player_id, card.card_name])
+	print("[GameManager] Player %d played %s (cost: %d)" % [player_id, card.card_name, effective_cost])
+	
+	# MODIFIER HOOK: Card resolved (after effects would be processed)
+	# Note: For async effects, you'd call this after effects complete
+	if ModifierManager:
+		ModifierManager.trigger_card_resolved(card, player_id)
 	
 	return true
 
@@ -346,9 +436,15 @@ func play_card(player_id: int, card: CardData) -> bool:
 ## =============================================================================
 
 ## Register a minion on the board
-func register_minion_on_board(player_id: int, minion_node: Node) -> void:
+func register_minion_on_board(player_id: int, minion_node: Node, lane: int = -1, row: int = -1) -> void:
 	players[player_id]["board"].append(minion_node)
 	print("[GameManager] Registered minion on board for player %d" % player_id)
+	
+	# MODIFIER HOOK: Minion summoned
+	if ModifierManager:
+		var row_int := 0 if minion_node.is_front_row else 1
+		ModifierManager.trigger_minion_summoned(minion_node, player_id, minion_node.lane_index, row_int)
+	
 	minion_summoned.emit(player_id, minion_node)
 
 
@@ -368,7 +464,8 @@ func get_board(player_id: int) -> Array:
 ## =============================================================================
 ## COMBAT SYSTEM
 ## =============================================================================
-# Check if a target minion is valid for attack (respects Taunt)
+
+## Check if a target minion is valid for attack (respects Taunt)
 func is_valid_attack_target(attacker_player_id: int, target: Node) -> bool:
 	if not target or not is_instance_valid(target):
 		return false
@@ -380,6 +477,12 @@ func is_valid_attack_target(attacker_player_id: int, target: Node) -> bool:
 	# Can't target Hidden minions
 	if target.has_hidden:
 		return false
+	
+	# MODIFIER HOOK: Check if modifiers allow targeting
+	if ModifierManager:
+		# We'd need the attacker node here for full implementation
+		# For now, just check the target
+		pass
 	
 	# Check if there's a Taunt minion in the same row that must be targeted first
 	var defender_player_id: int = target.owner_id
@@ -397,6 +500,8 @@ func is_valid_attack_target(attacker_player_id: int, target: Node) -> bool:
 		return false
 	
 	return true
+
+
 ## Execute combat between two minions
 func execute_combat(attacker: Node, defender: Node) -> void:
 	if not is_instance_valid(attacker) or not is_instance_valid(defender):
@@ -404,77 +509,116 @@ func execute_combat(attacker: Node, defender: Node) -> void:
 	
 	current_phase = GamePhase.COMBAT
 	
-	var attacker_attack: int = attacker.current_attack
-	var defender_attack: int = defender.current_attack
+	# MODIFIER HOOK: Combat start
+	if ModifierManager:
+		ModifierManager.trigger_combat_start()
+	
+	var attacker_attack: int = attacker.get_effective_attack()
+	var defender_attack: int = defender.get_effective_attack()
 	
 	var attacker_shielded: bool = attacker.has_shielded
 	var defender_shielded: bool = defender.has_shielded
 	
-	# Calculate damage
+	# Calculate base damage
 	var damage_to_attacker: int = defender_attack
 	var damage_to_defender: int = attacker_attack
+	
+	# MODIFIER HOOK: Modify damage dealt by attacker
+	if ModifierManager:
+		damage_to_defender = ModifierManager.apply_damage_dealt_modifiers(
+			damage_to_defender, attacker, defender, "combat"
+		)
+	
+	# MODIFIER HOOK: Modify damage taken by defender
+	if ModifierManager:
+		damage_to_defender = ModifierManager.apply_damage_taken_modifiers(
+			damage_to_defender, attacker, defender, "combat"
+		)
+	
+	# MODIFIER HOOK: Modify damage dealt by defender (counter-attack)
+	if ModifierManager:
+		damage_to_attacker = ModifierManager.apply_damage_dealt_modifiers(
+			damage_to_attacker, defender, attacker, "combat"
+		)
+	
+	# MODIFIER HOOK: Modify damage taken by attacker
+	if ModifierManager:
+		damage_to_attacker = ModifierManager.apply_damage_taken_modifiers(
+			damage_to_attacker, defender, attacker, "combat"
+		)
 	
 	# Check Bully bonus
 	var bully_active: bool = false
 	if attacker.has_bully and attacker_attack > defender_attack:
 		bully_active = true
-		print("[GameManager] Bully active! Attacker has higher attack")
-	
-	# Handle Shielded
-	if attacker_shielded and damage_to_attacker > 0:
-		attacker.break_shield()
-		damage_to_attacker = 0
-		print("[GameManager] Attacker's Shield absorbed damage")
-	
-	if defender_shielded and damage_to_defender > 0:
-		defender.break_shield()
-		damage_to_defender = 0
-		print("[GameManager] Defender's Shield absorbed damage")
+		print("[GameManager] Bully active! %s attacking weaker target" % attacker.card_data.card_name)
+		# Bully bonus effect would be processed here or by the minion
+		if ModifierManager:
+			ModifierManager.trigger_keyword("Bully", attacker, {"defender": defender})
 	
 	# Apply damage
-	if damage_to_defender > 0:
-		defender.take_damage(damage_to_defender)
+	defender.take_damage(damage_to_defender)
+	attacker.take_damage(damage_to_attacker)
 	
-	if damage_to_attacker > 0:
-		attacker.take_damage(damage_to_attacker)
+	# MODIFIER HOOK: Trigger damage dealt/taken events
+	if ModifierManager:
+		if damage_to_defender > 0:
+			ModifierManager.trigger_damage_dealt(damage_to_defender, attacker, defender)
+			ModifierManager.trigger_damage_taken(damage_to_defender, attacker, defender)
+		if damage_to_attacker > 0:
+			ModifierManager.trigger_damage_dealt(damage_to_attacker, defender, attacker)
+			ModifierManager.trigger_damage_taken(damage_to_attacker, defender, attacker)
 	
-	# Check Lethal
-	if attacker.has_lethal and defender.current_health > 0 and damage_to_defender > 0:
+	# MODIFIER HOOK: Minion attack event
+	if ModifierManager:
+		ModifierManager.trigger_minion_attack(attacker, defender)
+	
+	# Handle Drain keyword
+	if attacker.has_drain and damage_to_defender > 0 and not defender_shielded:
+		var drain_amount := damage_to_defender
+		if ModifierManager:
+			drain_amount = ModifierManager.apply_keyword_value_modifiers("Drain", drain_amount, attacker)
+			ModifierManager.trigger_keyword("Drain", attacker, {"amount": drain_amount})
+		_heal_hero(attacker.owner_id, drain_amount)
+		print("[GameManager] Drain: Healed %d" % drain_amount)
+	
+	# Handle Lethal keyword
+	if attacker.has_lethal and damage_to_defender > 0 and not defender_shielded:
 		defender.current_health = 0
-		print("[GameManager] Lethal triggered - defender destroyed")
+		print("[GameManager] Lethal triggered!")
+		if ModifierManager:
+			ModifierManager.trigger_keyword("Lethal", attacker, {"victim": defender})
 	
-	if defender.has_lethal and attacker.current_health > 0 and damage_to_attacker > 0:
+	if defender.has_lethal and damage_to_attacker > 0 and not attacker_shielded:
 		attacker.current_health = 0
-		print("[GameManager] Lethal triggered - attacker destroyed")
+		print("[GameManager] Lethal counter-triggered!")
+		if ModifierManager:
+			ModifierManager.trigger_keyword("Lethal", defender, {"victim": attacker})
 	
-	# Drain healing
-	if attacker.has_drain and damage_to_defender > 0:
-		_heal_hero(attacker.owner_id, damage_to_defender)
-		print("[GameManager] Drain: Healed %d" % damage_to_defender)
-	
-	# Hidden breaks on attack
+	# Hidden breaks when attacking
 	if attacker.has_hidden:
 		attacker.break_hidden()
 	
-	# Update attack tracking
+	# Mark attacker as having attacked
 	attacker.has_attacked = true
 	attacker.attacks_this_turn += 1
 	
+	# Emit combat data
 	var attacker_data := {
 		"node": attacker,
-		"damage_dealt": attacker_attack,
-		"damage_taken": damage_to_attacker,
-		"shield_popped": attacker_shielded,
-		"bully_active": bully_active
+		"damage_dealt": damage_to_defender,
+		"damage_taken": damage_to_attacker
 	}
 	var defender_data := {
 		"node": defender,
-		"damage_dealt": defender_attack,
-		"damage_taken": damage_to_defender,
-		"shield_popped": defender_shielded
+		"damage_dealt": damage_to_attacker,
+		"damage_taken": damage_to_defender
 	}
-	
 	combat_occurred.emit(attacker_data, defender_data)
+	
+	# MODIFIER HOOK: Combat end
+	if ModifierManager:
+		ModifierManager.trigger_combat_end()
 	
 	await get_tree().process_frame
 	_check_minion_deaths()
@@ -487,25 +631,36 @@ func attack_hero(attacker: Node, target_player_id: int) -> void:
 	if not is_instance_valid(attacker):
 		return
 	
-	var attacker_attack: int = attacker.current_attack
+	var attacker_attack: int = attacker.get_effective_attack()
 	var player_data: Dictionary = players[target_player_id]
-	var damage_dealt = 0
+	var damage_dealt := 0
+	
+	# MODIFIER HOOK: Modify damage dealt to hero
+	var modified_damage := attacker_attack
+	if ModifierManager:
+		modified_damage = ModifierManager.apply_damage_dealt_modifiers(
+			modified_damage, attacker, null, "hero_attack"
+		)
 	
 	# Damage armor first
 	if player_data["hero_armor"] > 0:
-		var armor_damage := mini(attacker_attack, player_data["hero_armor"])
+		var armor_damage := mini(modified_damage, player_data["hero_armor"])
 		player_data["hero_armor"] -= armor_damage
-		attacker_attack -= armor_damage
+		modified_damage -= armor_damage
 		damage_dealt += armor_damage
 	
-	if attacker_attack > 0:
-		player_data["hero_health"] -= attacker_attack
-		damage_dealt += attacker_attack
+	if modified_damage > 0:
+		player_data["hero_health"] -= modified_damage
+		damage_dealt += modified_damage
 	
 	# Drain when attacking hero
 	if attacker.has_drain and damage_dealt > 0:
-		_heal_hero(attacker.owner_id, damage_dealt)
-		print("[GameManager] Drain: Healed %d from hero attack" % damage_dealt)
+		var drain_amount := damage_dealt
+		if ModifierManager:
+			drain_amount = ModifierManager.apply_keyword_value_modifiers("Drain", drain_amount, attacker)
+			ModifierManager.trigger_keyword("Drain", attacker, {"amount": drain_amount, "target": "hero"})
+		_heal_hero(attacker.owner_id, drain_amount)
+		print("[GameManager] Drain: Healed %d from hero attack" % drain_amount)
 	
 	# Hidden breaks when attacking
 	if attacker.has_hidden:
@@ -513,6 +668,10 @@ func attack_hero(attacker: Node, target_player_id: int) -> void:
 	
 	attacker.has_attacked = true
 	attacker.attacks_this_turn += 1
+	
+	# MODIFIER HOOK: Trigger damage events
+	if ModifierManager and damage_dealt > 0:
+		ModifierManager.trigger_damage_dealt(damage_dealt, attacker, null)
 	
 	print("[GameManager] Player %d hero took %d damage, now at %d HP" % [
 		target_player_id, damage_dealt, player_data["hero_health"]
@@ -525,12 +684,23 @@ func attack_hero(attacker: Node, target_player_id: int) -> void:
 func _heal_hero(player_id: int, amount: int) -> void:
 	var player_data: Dictionary = players[player_id]
 	var old_health: int = player_data["hero_health"]
+	
+	# MODIFIER HOOK: Modify healing
+	var modified_amount := amount
+	if ModifierManager:
+		modified_amount = ModifierManager.apply_healing_modifiers(amount, null, null)
+	
 	player_data["hero_health"] = mini(
-		player_data["hero_health"] + amount,
+		player_data["hero_health"] + modified_amount,
 		player_data["hero_max_health"]
 	)
+	
 	if player_data["hero_health"] != old_health:
 		health_changed.emit(player_id, player_data["hero_health"], player_data["hero_max_health"])
+		
+		# MODIFIER HOOK: Healing applied
+		if ModifierManager:
+			ModifierManager.trigger_healing_applied(modified_amount, null, null)
 
 
 ## =============================================================================
@@ -540,63 +710,43 @@ func _heal_hero(player_id: int, amount: int) -> void:
 func _check_minion_deaths() -> void:
 	for player_id in range(2):
 		var board: Array = players[player_id]["board"]
-		var dead_minions: Array[Node] = []
+		var dead_minions: Array = []
 		
 		for minion in board:
 			if is_instance_valid(minion) and minion.current_health <= 0:
 				dead_minions.append(minion)
 		
 		for minion in dead_minions:
-			await _destroy_minion(player_id, minion)
+			_handle_minion_death(player_id, minion)
 
 
-func _destroy_minion(player_id: int, minion: Node) -> void:
-	var board: Array = players[player_id]["board"]
-	var board_pos := board.find(minion)
+func _handle_minion_death(player_id: int, minion: Node) -> void:
+	var board_position := players[player_id]["board"].find(minion)
 	
-	if board_pos == -1:
-		return
-	
-	# Check Persistent keyword
+	# Handle Persistent keyword
 	if minion.has_persistent:
-		minion.trigger_persistent()
-		print("[GameManager] Persistent triggered - minion revived with 1 HP")
+		minion.current_health = 1
+		minion.remove_persistent()
+		print("[GameManager] Persistent triggered for %s" % minion.card_data.card_name)
+		if ModifierManager:
+			ModifierManager.trigger_keyword("Persistent", minion, {})
 		return
 	
 	# Remove from board
-	board.remove_at(board_pos)
+	remove_minion_from_board(player_id, minion)
 	
 	# Add to graveyard
 	if minion.card_data:
 		players[player_id]["graveyard"].append(minion.card_data)
 	
-	print("[GameManager] Minion destroyed: %s" % minion.card_data.card_name if minion.card_data else "Unknown")
+	# MODIFIER HOOK: Minion death
+	if ModifierManager:
+		ModifierManager.trigger_minion_death(minion, player_id, null)
 	
-	minion_died.emit(player_id, minion, board_pos)
+	minion_died.emit(player_id, minion, board_position)
 	
-	# Trigger on-death effects
-	if minion.has_method("trigger_on_death"):
-		await minion.trigger_on_death()
-	
-	# Clean up the node
-	if is_instance_valid(minion):
-		minion.queue_free()
-
-
-func _kill_minion(player_id: int, minion: Node, board_pos: int) -> void:
-	# Direct kill without Persistent check (for Ritual sacrifice, etc.)
-	var board: Array = players[player_id]["board"]
-	
-	if board_pos >= 0 and board_pos < board.size():
-		board.remove_at(board_pos)
-	
-	if minion.card_data:
-		players[player_id]["graveyard"].append(minion.card_data)
-	
-	minion_died.emit(player_id, minion, board_pos)
-	
-	if is_instance_valid(minion):
-		minion.queue_free()
+	# Queue free the minion node
+	minion.queue_free()
 
 
 func _check_hero_death(player_id: int) -> void:
@@ -607,38 +757,47 @@ func _check_hero_death(player_id: int) -> void:
 
 func _end_game(winner_id: int) -> void:
 	current_phase = GamePhase.GAME_OVER
-	print("[GameManager] === GAME OVER === Winner: Player %d" % winner_id)
+	print("[GameManager] Game Over! Player %d wins!" % winner_id)
 	game_ended.emit(winner_id)
+
 
 ## =============================================================================
 ## UTILITY FUNCTIONS
 ## =============================================================================
 
-## Check if it's a player's turn
 func is_player_turn(player_id: int) -> bool:
 	return active_player == player_id and current_phase == GamePhase.PLAY
 
 
-## Get current mana for a player
-func get_current_mana(player_id: int) -> int:
-	return players[player_id]["current_mana"]
-
-
-## Get max mana for a player
-func get_max_mana(player_id: int) -> int:
-	return players[player_id]["max_mana"]
-
-
-## Get hero health for a player
-func get_hero_health(player_id: int) -> int:
+func get_player_health(player_id: int) -> int:
 	return players[player_id]["hero_health"]
 
 
-## Get hand for a player
-func get_hand(player_id: int) -> Array:
-	return players[player_id]["hand"]
+func get_hand_size(player_id: int) -> int:
+	return players[player_id]["hand"].size()
 
 
-## Get deck count for a player
-func get_deck_count(player_id: int) -> int:
+func get_deck_size(player_id: int) -> int:
 	return players[player_id]["deck"].size()
+
+
+func set_player_deck(player_id: int, deck: Array[CardData]) -> void:
+	players[player_id]["deck"] = deck.duplicate()
+
+
+## =============================================================================
+## TARGETING HELPERS (with modifier support)
+## =============================================================================
+
+## Get valid targets for an effect, filtered by modifiers
+func get_valid_targets(source: Node, available_targets: Array) -> Array:
+	if ModifierManager:
+		return ModifierManager.filter_targets(source, available_targets)
+	return available_targets
+
+
+## Check if a specific target is valid (with modifier check)
+func can_target(source: Node, target: Node) -> bool:
+	if ModifierManager:
+		return ModifierManager.can_target(source, target)
+	return true

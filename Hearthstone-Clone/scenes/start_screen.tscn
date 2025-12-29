@@ -86,7 +86,7 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 20
 text = "Exit Game"
 
-[node name="Shop Test" type="Button" parent="CenterContainer/VBoxContainer/MenuButtons"]
+[node name="ShopTest" type="Button" parent="CenterContainer/VBoxContainer/MenuButtons"]
 custom_minimum_size = Vector2(250, 60)
 layout_mode = 2
 theme_override_font_sizes/font_size = 20

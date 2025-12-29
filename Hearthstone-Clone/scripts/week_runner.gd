@@ -96,29 +96,25 @@ func _ready() -> void:
 	
 	# Safety check - if no schedule, redirect to schedule builder
 	if weekly_schedule.is_empty():
-		print("[WeekRunner] ERROR: Empty schedule! Redirecting to schedule builder...")
-		await get_tree().process_frame
+		print("[WeekRunner] ERROR: Empty schedule! Redirecting to schedule builder.")
 		get_tree().change_scene_to_file("res://scenes/schedule_builder.tscn")
 		return
 	
 	_setup_ui()
+	_apply_styling()
 	_update_display()
 	
 	get_viewport().size_changed.connect(_on_viewport_size_changed)
-	
-	# Auto-start after a brief moment
-	await get_tree().create_timer(0.5).timeout
-	_check_auto_execute()
 
 
 func _setup_ui() -> void:
 	# Background
 	var bg = ColorRect.new()
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.color = Color(0.06, 0.08, 0.12)
+	bg.color = Color(0.08, 0.1, 0.14)
 	add_child(bg)
 	
-	# Main container
+	# Main layout
 	var margin = MarginContainer.new()
 	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
 	margin.add_theme_constant_override("margin_left", 50)
@@ -128,14 +124,23 @@ func _setup_ui() -> void:
 	add_child(margin)
 	
 	var main_vbox = VBoxContainer.new()
-	main_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	main_vbox.add_theme_constant_override("separation", 30)
+	main_vbox.add_theme_constant_override("separation", 20)
 	margin.add_child(main_vbox)
 	
-	# Gold display (top right)
+	# Header with day and gold
+	var header = HBoxContainer.new()
+	main_vbox.add_child(header)
+	
+	day_label = Label.new()
+	day_label.text = "Day 1 of 5"
+	day_label.add_theme_font_size_override("font_size", 28)
+	day_label.add_theme_color_override("font_color", Color(0.9, 0.85, 0.7))
+	day_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(day_label)
+	
 	var gold_container = HBoxContainer.new()
-	gold_container.alignment = BoxContainer.ALIGNMENT_END
-	main_vbox.add_child(gold_container)
+	gold_container.add_theme_constant_override("separation", 5)
+	header.add_child(gold_container)
 	
 	var gold_icon = Label.new()
 	gold_icon.text = "💰"
@@ -143,53 +148,24 @@ func _setup_ui() -> void:
 	gold_container.add_child(gold_icon)
 	
 	gold_label = Label.new()
-	gold_label.text = "0"
+	gold_label.text = str(GameManager.get_meta("player_gold") if GameManager.has_meta("player_gold") else 0)
 	gold_label.add_theme_font_size_override("font_size", 24)
 	gold_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
 	gold_container.add_child(gold_label)
+	
+	main_vbox.add_child(HSeparator.new())
 	
 	# Spacer
 	var spacer1 = Control.new()
 	spacer1.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	main_vbox.add_child(spacer1)
 	
-	# Day header
-	day_label = Label.new()
-	day_label.text = "Day 1 of 5"
-	day_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	day_label.add_theme_font_size_override("font_size", 36)
-	day_label.add_theme_color_override("font_color", Color(0.9, 0.85, 0.7))
-	main_vbox.add_child(day_label)
-	
-	# Activity card
-	var activity_panel = PanelContainer.new()
-	activity_panel.custom_minimum_size = Vector2(400, 250)
-	activity_panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	
-	var panel_style = StyleBoxFlat.new()
-	panel_style.bg_color = Color(0.1, 0.12, 0.16)
-	panel_style.border_color = Color(0.4, 0.35, 0.25)
-	panel_style.set_border_width_all(3)
-	panel_style.set_corner_radius_all(12)
-	activity_panel.add_theme_stylebox_override("panel", panel_style)
-	main_vbox.add_child(activity_panel)
-	
-	var activity_vbox = VBoxContainer.new()
-	activity_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	activity_vbox.add_theme_constant_override("separation", 15)
-	activity_panel.add_child(activity_vbox)
-	
-	# Center the content
+	# Activity display (centered)
 	var center_margin = MarginContainer.new()
-	center_margin.set_anchors_preset(Control.PRESET_FULL_RECT)
-	center_margin.add_theme_constant_override("margin_left", 30)
-	center_margin.add_theme_constant_override("margin_right", 30)
-	center_margin.add_theme_constant_override("margin_top", 30)
-	center_margin.add_theme_constant_override("margin_bottom", 30)
-	activity_panel.add_child(center_margin)
+	center_margin.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	main_vbox.add_child(center_margin)
 	
 	var centered_vbox = VBoxContainer.new()
-	centered_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	centered_vbox.add_theme_constant_override("separation", 15)
 	center_margin.add_child(centered_vbox)
 	
@@ -233,97 +209,80 @@ func _setup_ui() -> void:
 	# Continue button
 	continue_button = Button.new()
 	continue_button.text = "Begin Activity"
-	continue_button.custom_minimum_size = Vector2(250, 60)
+	continue_button.custom_minimum_size = Vector2(200, 50)
 	continue_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	continue_button.pressed.connect(_on_continue_pressed)
 	main_vbox.add_child(continue_button)
-	
-	_style_button(continue_button)
 
 
 func _create_progress_dot(index: int) -> PanelContainer:
 	var dot = PanelContainer.new()
-	dot.custom_minimum_size = Vector2(50, 50)
+	dot.custom_minimum_size = Vector2(20, 20)
 	
 	var style = StyleBoxFlat.new()
-	style.set_corner_radius_all(25)
-	style.set_content_margin_all(5)
-	
-	if index < current_day_index:
-		# Completed
-		style.bg_color = Color(0.3, 0.7, 0.3)
-		style.border_color = Color(0.4, 0.8, 0.4)
-	elif index == current_day_index:
-		# Current
-		style.bg_color = Color(0.8, 0.6, 0.2)
-		style.border_color = Color(1.0, 0.8, 0.3)
-	else:
-		# Future
-		style.bg_color = Color(0.2, 0.2, 0.25)
-		style.border_color = Color(0.3, 0.3, 0.35)
-	
+	style.set_corner_radius_all(10)
+	style.bg_color = Color(0.2, 0.2, 0.25)
+	style.border_color = Color(0.3, 0.3, 0.35)
 	style.set_border_width_all(2)
 	dot.add_theme_stylebox_override("panel", style)
-	
-	# Day number
-	var label = Label.new()
-	label.text = str(index + 1)
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 18)
-	label.add_theme_color_override("font_color", Color.WHITE)
-	dot.add_child(label)
 	
 	return dot
 
 
+func _apply_styling() -> void:
+	var btn_style = StyleBoxFlat.new()
+	btn_style.bg_color = Color(0.2, 0.35, 0.2)
+	btn_style.border_color = Color(0.4, 0.6, 0.4)
+	btn_style.set_border_width_all(2)
+	btn_style.set_corner_radius_all(8)
+	btn_style.set_content_margin_all(10)
+	
+	if continue_button:
+		continue_button.add_theme_stylebox_override("normal", btn_style)
+		continue_button.add_theme_font_size_override("font_size", 18)
+
+
 func _update_display() -> void:
-	print("[WeekRunner] _update_display() - day_index: %d, schedule_size: %d" % [current_day_index, weekly_schedule.size()])
+	# Update gold display
+	gold_label.text = str(GameManager.get_meta("player_gold") if GameManager.has_meta("player_gold") else 0)
 	
-	# Update gold
-	var player_gold: int = GameManager.get_meta("player_gold") if GameManager.has_meta("player_gold") else 0
-	gold_label.text = str(player_gold)
-	
+	# Check if week is complete
 	if current_day_index >= weekly_schedule.size():
-		# Week complete!
-		print("[WeekRunner] Week complete!")
 		day_label.text = "Week Complete!"
 		activity_icon.text = "🎉"
-		activity_name.text = "All activities finished!"
-		activity_desc.text = "Return to schedule builder to plan next week"
-		continue_button.text = "Plan Next Week"
+		activity_name.text = "All activities finished"
+		activity_name.add_theme_color_override("font_color", Color(0.4, 0.8, 0.4))
+		activity_desc.text = "Return to plan your next week"
+		continue_button.text = "Continue"
+		_refresh_progress_dots()
 		return
 	
-	# Update day label
-	day_label.text = "Day %d of %d" % [current_day_index + 1, weekly_schedule.size()]
-	
-	# Get current activity with safety check
+	# Show current activity
 	var activity_id: String = weekly_schedule[current_day_index]
-	print("[WeekRunner] Current activity_id: ", activity_id)
+	var activity: Dictionary = activities.get(activity_id, {})
 	
-	if not activities.has(activity_id):
-		print("[WeekRunner] WARNING: Unknown activity_id '%s', defaulting to duel" % activity_id)
-		activity_id = "duel"
-	
-	var activity_data: Dictionary = activities[activity_id]
-	
-	activity_icon.text = activity_data["icon"]
-	activity_name.text = activity_data["name"]
-	activity_desc.text = activity_data["description"]
-	activity_name.add_theme_color_override("font_color", activity_data["color"])
+	day_label.text = "Day %d of %d" % [current_day_index + 1, weekly_schedule.size()]
+	activity_icon.text = activity.get("icon", "❓")
+	activity_name.text = activity.get("name", "Unknown")
+	activity_name.add_theme_color_override("font_color", activity.get("color", Color.WHITE))
+	activity_desc.text = activity.get("description", "")
 	
 	# Update button text based on activity
 	match activity_id:
 		"duel":
-			continue_button.text = "Start Battle!"
+			continue_button.text = "Start Duel!"
 		"champion":
 			continue_button.text = "Challenge Champion!"
 		"shop":
 			continue_button.text = "Enter Shop"
 		"side_job":
-			continue_button.text = "Work Shift (+%d Gold)" % SIDE_JOB_GOLD
+			# MODIFIER HOOK: Get modified gold reward
+			var base_gold := SIDE_JOB_GOLD
+			var modified_gold := base_gold
+			if ModifierManager:
+				modified_gold = ModifierManager.apply_schedule_effect_modifiers("side_job", base_gold)
+			continue_button.text = "Work Shift (+%d Gold)" % modified_gold
 	
-	# Update progress dots
 	_refresh_progress_dots()
 
 
@@ -351,12 +310,6 @@ func _refresh_progress_dots() -> void:
 		dot.add_theme_stylebox_override("panel", style)
 
 
-func _check_auto_execute() -> void:
-	# For side_job, we can auto-execute without user input
-	# But for now, let the user click to proceed
-	pass
-
-
 func _on_continue_pressed() -> void:
 	if _is_transitioning:
 		return
@@ -365,7 +318,6 @@ func _on_continue_pressed() -> void:
 	
 	if current_day_index >= weekly_schedule.size():
 		# Week complete - go back to schedule builder
-		# Reset day index for next week
 		GameManager.set_meta("current_day_index", 0)
 		get_tree().change_scene_to_file("res://scenes/schedule_builder.tscn")
 		return
@@ -388,15 +340,25 @@ func _on_continue_pressed() -> void:
 
 
 func _execute_side_job() -> void:
+	# MODIFIER HOOK: Apply schedule effect modifier to gold reward
+	var base_gold := SIDE_JOB_GOLD
+	var modified_gold := base_gold
+	if ModifierManager:
+		modified_gold = ModifierManager.apply_schedule_effect_modifiers("side_job", base_gold)
+	
 	# Add gold
 	var player_gold: int = GameManager.get_meta("player_gold") if GameManager.has_meta("player_gold") else 0
-	player_gold += SIDE_JOB_GOLD
+	player_gold += modified_gold
 	GameManager.set_meta("player_gold", player_gold)
 	
-	print("[WeekRunner] Side job completed! Earned %d gold. Total: %d" % [SIDE_JOB_GOLD, player_gold])
+	print("[WeekRunner] Side job completed! Earned %d gold (base: %d). Total: %d" % [modified_gold, base_gold, player_gold])
 	
 	# Show gold earned animation
-	_show_gold_popup(SIDE_JOB_GOLD)
+	_show_gold_popup(modified_gold)
+	
+	# MODIFIER HOOK: Trigger schedule day complete
+	if ModifierManager:
+		ModifierManager.trigger_schedule_day_complete(current_day_index, "side_job")
 	
 	# Wait then advance
 	await get_tree().create_timer(1.5).timeout
@@ -429,6 +391,10 @@ func _execute_shop() -> void:
 	GameManager.set_meta("return_to_week_runner", true)
 	GameManager.set_meta("current_day_index", current_day_index)
 	
+	# MODIFIER HOOK: Trigger schedule day complete
+	if ModifierManager:
+		ModifierManager.trigger_schedule_day_complete(current_day_index, "shop")
+	
 	print("[WeekRunner] Going to shop, will return to day %d" % current_day_index)
 	
 	# Go to shop
@@ -440,6 +406,10 @@ func _execute_battle(battle_type: String) -> void:
 	GameManager.set_meta("battle_type", battle_type)
 	GameManager.set_meta("return_to_week_runner", true)
 	GameManager.set_meta("current_day_index", current_day_index)
+	
+	# MODIFIER HOOK: Trigger schedule day complete (before battle)
+	if ModifierManager:
+		ModifierManager.trigger_schedule_day_complete(current_day_index, battle_type)
 	
 	print("[WeekRunner] Starting %s battle, will return to day %d" % [battle_type, current_day_index])
 	
@@ -460,39 +430,18 @@ func _advance_day() -> void:
 		print("[WeekRunner] Week complete!")
 
 
-func _style_button(button: Button) -> void:
-	var normal_style = StyleBoxFlat.new()
-	normal_style.bg_color = Color(0.25, 0.3, 0.4)
-	normal_style.border_color = Color(0.5, 0.5, 0.6)
-	normal_style.set_border_width_all(2)
-	normal_style.set_corner_radius_all(6)
-	normal_style.set_content_margin_all(12)
-	button.add_theme_stylebox_override("normal", normal_style)
-	
-	var hover_style = normal_style.duplicate()
-	hover_style.bg_color = Color(0.35, 0.4, 0.5)
-	hover_style.border_color = Color(0.7, 0.6, 0.4)
-	button.add_theme_stylebox_override("hover", hover_style)
-	
-	var pressed_style = normal_style.duplicate()
-	pressed_style.bg_color = Color(0.2, 0.25, 0.35)
-	button.add_theme_stylebox_override("pressed", pressed_style)
-	
-	button.add_theme_font_size_override("font_size", 20)
-	button.add_theme_color_override("font_color", Color(0.9, 0.85, 0.7))
-	button.add_theme_color_override("font_hover_color", Color(1, 0.95, 0.8))
-
-
 func _on_viewport_size_changed() -> void:
-	# Could add responsive scaling here if needed
+	# Could update responsive elements here
 	pass
+
+
+func get_scale_factor() -> float:
+	var viewport_size = DisplayServer.window_get_size()
+	return clampf(viewport_size.y / REFERENCE_HEIGHT, 1.0, 3.0)
 
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed:
 		if event.keycode == KEY_ESCAPE:
-			# Return to start screen
-			get_tree().change_scene_to_file("res://scenes/start_screen.tscn")
-		elif event.keycode == KEY_SPACE or event.keycode == KEY_ENTER:
-			# Quick continue
-			_on_continue_pressed()
+			# Return to schedule builder
+			get_tree().change_scene_to_file("res://scenes/schedule_builder.tscn")

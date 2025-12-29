@@ -1,201 +1,298 @@
 # res://scripts/victory_selection.gd
 extends Control
 
-## Path to card resources
-const CARDS_PATH = "res://data/cards/"
+## Victory screen shown after winning a battle
+## Allows player to choose card rewards
 
-## Scene for card UI display
-@export var card_ui_scene: PackedScene
+const REFERENCE_HEIGHT: float = 720.0
+const CARDS_PER_BUCKET: int = 3
+const NUM_BUCKETS: int = 3
 
-## Container for the 3 buckets
-@export var buckets_container: HBoxContainer
+## Available cards for rewards
+var reward_pool: Array[CardData] = []
 
-## Title label
-@export var title_label: Label
+## Generated buckets of cards
+var reward_buckets: Array[Array] = []
 
-## All available cards loaded from resources
-var _all_cards: Array[CardData] = []
+## UI References
+var title_label: Label
+var gold_label: Label
+var buckets_container: HBoxContainer
+var skip_button: Button
+
+## Track if selection has been made
+var selection_made: bool = false
 
 
 func _ready() -> void:
-	_load_card_database()
-	_generate_loot_buckets()
+	_load_card_pool()
+	_generate_reward_buckets()
+	_setup_ui()
 	_apply_styling()
+	
+	get_viewport().size_changed.connect(_on_viewport_size_changed)
+	
+	print("[VictorySelection] Showing %d reward buckets" % reward_buckets.size())
 
 
-func _apply_styling() -> void:
-	# Style the bucket panels
-	for child in buckets_container.get_children():
-		if child is PanelContainer:
-			var style = StyleBoxFlat.new()
-			style.bg_color = Color(0.12, 0.14, 0.2)
-			style.border_color = Color(0.5, 0.45, 0.3)
-			style.set_border_width_all(2)
-			style.set_corner_radius_all(10)
-			style.set_content_margin_all(15)
-			child.add_theme_stylebox_override("panel", style)
+func _load_card_pool() -> void:
+	# Load cards from database
+	var cards_dir := "res://data/cards/"
+	var dir := DirAccess.open(cards_dir)
+	
+	if dir == null:
+		print("[VictorySelection] Warning: Could not open cards directory")
+		_generate_fallback_pool()
+		return
+	
+	dir.list_dir_begin()
+	var file_name := dir.get_next()
+	while file_name != "":
+		if file_name.ends_with(".tres"):
+			var card_path := cards_dir + file_name
+			var card_resource = load(card_path)
+			if card_resource and card_resource is CardData:
+				reward_pool.append(card_resource)
+		file_name = dir.get_next()
+	dir.list_dir_end()
+	
+	# Shuffle the pool
+	reward_pool.shuffle()
+	
+	print("[VictorySelection] Loaded %d cards for reward pool" % reward_pool.size())
 
 
-## Loads all card resources from the cards folder
-func _load_card_database() -> void:
-	var dir = DirAccess.open(CARDS_PATH)
-	if dir:
-		dir.list_dir_begin()
-		var file_name = dir.get_next()
-		while file_name != "":
-			if not dir.current_is_dir() and file_name.ends_with(".tres"):
-				var card_path = CARDS_PATH + file_name
-				var card_data = load(card_path) as CardData
-				if card_data:
-					# Only add non-token cards (check via tags if needed)
-					if not card_data.has_keyword("Token"):
-						_all_cards.append(card_data)
-			file_name = dir.get_next()
-		dir.list_dir_end()
-	else:
-		push_error("[VictorySelection] Could not open cards path: " + CARDS_PATH)
-		# Add some fallback cards for testing
-		_generate_fallback_cards()
-	
-	print("[VictorySelection] Loaded %d cards for rewards" % _all_cards.size())
+func _generate_fallback_pool() -> void:
+	# Generate some basic cards if database can't be loaded
+	for i in range(15):
+		var card := CardData.new()
+		card.id = "reward_%d" % i
+		card.card_name = "Reward Card %d" % (i + 1)
+		card.cost = (i % 5) + 1
+		card.attack = (i % 4) + 1
+		card.health = (i % 4) + 2
+		card.card_type = CardData.CardType.MINION
+		card.rarity = (i % 4) as CardData.Rarity
+		reward_pool.append(card)
 
 
-func _generate_fallback_cards() -> void:
-	# If no cards loaded, we still need something to show
-	# This shouldn't happen in production but helps during development
-	print("[VictorySelection] Using fallback card generation")
+func _generate_reward_buckets() -> void:
+	reward_buckets.clear()
+	
+	# MODIFIER HOOK: Check if modifiers affect reward quantity
+	var cards_per_bucket := CARDS_PER_BUCKET
+	if ModifierManager:
+		cards_per_bucket = ModifierManager.apply_schedule_effect_modifiers("reward_cards_per_bucket", CARDS_PER_BUCKET)
+	
+	var num_buckets := NUM_BUCKETS
+	if ModifierManager:
+		num_buckets = ModifierManager.apply_schedule_effect_modifiers("reward_bucket_count", NUM_BUCKETS)
+	
+	var pool_copy := reward_pool.duplicate()
+	pool_copy.shuffle()
+	
+	for i in range(num_buckets):
+		var bucket: Array[CardData] = []
+		for j in range(cards_per_bucket):
+			if pool_copy.is_empty():
+				break
+			bucket.append(pool_copy.pop_back())
+		if not bucket.is_empty():
+			reward_buckets.append(bucket)
 
 
-## Creates 3 buckets, each containing 3 random cards
-func _generate_loot_buckets() -> void:
-	# Clear existing children if any
-	for child in buckets_container.get_children():
-		child.queue_free()
+func _setup_ui() -> void:
+	# Background
+	var bg = ColorRect.new()
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.color = Color(0.06, 0.08, 0.12)
+	add_child(bg)
 	
-	for i in range(3):
-		_create_bucket_ui(i)
+	# Main layout
+	var margin = MarginContainer.new()
+	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 40)
+	margin.add_theme_constant_override("margin_right", 40)
+	margin.add_theme_constant_override("margin_top", 30)
+	margin.add_theme_constant_override("margin_bottom", 30)
+	add_child(margin)
+	
+	var main_vbox = VBoxContainer.new()
+	main_vbox.add_theme_constant_override("separation", 20)
+	margin.add_child(main_vbox)
+	
+	# Victory header
+	title_label = Label.new()
+	title_label.text = "🏆 Victory!"
+	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title_label.add_theme_font_size_override("font_size", 48)
+	title_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+	main_vbox.add_child(title_label)
+	
+	# Gold earned display
+	var gold_earned := _get_gold_reward()
+	
+	var gold_container = HBoxContainer.new()
+	gold_container.alignment = BoxContainer.ALIGNMENT_CENTER
+	gold_container.add_theme_constant_override("separation", 10)
+	main_vbox.add_child(gold_container)
+	
+	var gold_icon = Label.new()
+	gold_icon.text = "💰"
+	gold_icon.add_theme_font_size_override("font_size", 28)
+	gold_container.add_child(gold_icon)
+	
+	gold_label = Label.new()
+	gold_label.text = "+%d Gold" % gold_earned
+	gold_label.add_theme_font_size_override("font_size", 28)
+	gold_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+	gold_container.add_child(gold_label)
+	
+	# Instructions
+	var instruction = Label.new()
+	instruction.text = "Choose a reward bundle:"
+	instruction.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	instruction.add_theme_font_size_override("font_size", 18)
+	instruction.add_theme_color_override("font_color", Color(0.7, 0.7, 0.75))
+	main_vbox.add_child(instruction)
+	
+	# Spacer
+	var spacer1 = Control.new()
+	spacer1.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	main_vbox.add_child(spacer1)
+	
+	# Buckets container
+	buckets_container = HBoxContainer.new()
+	buckets_container.alignment = BoxContainer.ALIGNMENT_CENTER
+	buckets_container.add_theme_constant_override("separation", 30)
+	main_vbox.add_child(buckets_container)
+	
+	# Create bucket displays
+	for i in range(reward_buckets.size()):
+		var bucket_panel = _create_bucket_panel(reward_buckets[i], i)
+		buckets_container.add_child(bucket_panel)
+	
+	# Spacer
+	var spacer2 = Control.new()
+	spacer2.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	main_vbox.add_child(spacer2)
+	
+	# Skip button
+	skip_button = Button.new()
+	skip_button.text = "Skip Rewards"
+	skip_button.custom_minimum_size = Vector2(150, 40)
+	skip_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	skip_button.pressed.connect(_on_skip_pressed)
+	main_vbox.add_child(skip_button)
 
 
-## Creates the UI for a single bucket
-func _create_bucket_ui(index: int) -> void:
-	var bucket_panel = PanelContainer.new()
-	bucket_panel.custom_minimum_size = Vector2(200, 500)
+func _get_gold_reward() -> int:
+	var base_gold := 50
+	var battle_type: String = GameManager.get_meta("battle_type") if GameManager.has_meta("battle_type") else "normal"
 	
-	var style = StyleBoxFlat.new()
-	style.bg_color = Color(0.12, 0.14, 0.2)
-	style.border_color = Color(0.5, 0.45, 0.3)
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(10)
-	style.set_content_margin_all(15)
-	bucket_panel.add_theme_stylebox_override("panel", style)
+	if battle_type == "elite":
+		base_gold = 100
 	
-	var content_vbox = VBoxContainer.new()
-	content_vbox.add_theme_constant_override("separation", 15)
-	bucket_panel.add_child(content_vbox)
+	# MODIFIER HOOK: Apply modifier to gold reward
+	if ModifierManager:
+		base_gold = ModifierManager.apply_schedule_effect_modifiers("victory_gold", base_gold)
 	
-	# Bucket title
-	var bucket_title = Label.new()
-	bucket_title.text = "Bucket %d" % (index + 1)
-	bucket_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	bucket_title.add_theme_font_size_override("font_size", 18)
-	bucket_title.add_theme_color_override("font_color", Color(0.8, 0.75, 0.6))
-	content_vbox.add_child(bucket_title)
-	
-	# Pick 3 random cards
-	var bucket_cards: Array[CardData] = []
-	for k in range(3):
-		if _all_cards.is_empty():
-			continue
-		var random_card = _all_cards.pick_random()
-		bucket_cards.append(random_card)
-		
-		# Create simple card display
-		var card_display = _create_card_display(random_card)
-		content_vbox.add_child(card_display)
-	
-	# Add Select Button
-	var select_btn = Button.new()
-	select_btn.text = "Select"
-	select_btn.custom_minimum_size.y = 50
-	
-	# Style the button
-	var btn_style = StyleBoxFlat.new()
-	btn_style.bg_color = Color(0.2, 0.4, 0.3)
-	btn_style.border_color = Color(0.4, 0.7, 0.5)
-	btn_style.set_border_width_all(2)
-	btn_style.set_corner_radius_all(6)
-	btn_style.set_content_margin_all(10)
-	select_btn.add_theme_stylebox_override("normal", btn_style)
-	
-	var hover_style = btn_style.duplicate()
-	hover_style.bg_color = Color(0.25, 0.5, 0.35)
-	hover_style.border_color = Color(0.5, 0.8, 0.6)
-	select_btn.add_theme_stylebox_override("hover", hover_style)
-	
-	select_btn.add_theme_font_size_override("font_size", 18)
-	select_btn.add_theme_color_override("font_color", Color(0.9, 0.95, 0.9))
-	
-	# Connect the button - pass the cards for this bucket
-	select_btn.pressed.connect(_on_bucket_selected.bind(bucket_cards))
-	content_vbox.add_child(select_btn)
-	
-	buckets_container.add_child(bucket_panel)
+	return base_gold
 
 
-## Creates a simple card display panel
-func _create_card_display(card: CardData) -> PanelContainer:
+func _create_bucket_panel(cards: Array, bucket_index: int) -> PanelContainer:
 	var panel = PanelContainer.new()
-	panel.custom_minimum_size = Vector2(150, 100)
-	
-	var rarity_color = _get_rarity_color(card.rarity)
+	panel.custom_minimum_size = Vector2(200, 300)
 	
 	var style = StyleBoxFlat.new()
-	style.bg_color = Color(0.08, 0.1, 0.15)
-	style.border_color = rarity_color.darkened(0.3)
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(6)
-	style.set_content_margin_all(8)
+	style.bg_color = Color(0.12, 0.15, 0.22)
+	style.border_color = Color(0.4, 0.35, 0.25)
+	style.set_border_width_all(3)
+	style.set_corner_radius_all(12)
+	style.set_content_margin_all(15)
 	panel.add_theme_stylebox_override("panel", style)
 	
 	var vbox = VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 4)
+	vbox.add_theme_constant_override("separation", 10)
 	panel.add_child(vbox)
+	
+	# Bundle label
+	var bundle_label = Label.new()
+	bundle_label.text = "Bundle %d" % (bucket_index + 1)
+	bundle_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	bundle_label.add_theme_font_size_override("font_size", 16)
+	bundle_label.add_theme_color_override("font_color", Color(0.8, 0.75, 0.6))
+	vbox.add_child(bundle_label)
+	
+	vbox.add_child(HSeparator.new())
+	
+	# Card list
+	for card in cards:
+		var card_entry = _create_card_entry(card as CardData)
+		vbox.add_child(card_entry)
+	
+	# Spacer
+	var spacer = Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_child(spacer)
+	
+	# Select button
+	var select_btn = Button.new()
+	select_btn.text = "Choose"
+	select_btn.custom_minimum_size = Vector2(0, 35)
+	select_btn.pressed.connect(_on_bucket_selected.bind(cards))
+	vbox.add_child(select_btn)
+	
+	# Hover effect
+	panel.mouse_entered.connect(func():
+		var hover_style = style.duplicate()
+		hover_style.border_color = Color(0.8, 0.7, 0.3)
+		panel.add_theme_stylebox_override("panel", hover_style)
+	)
+	panel.mouse_exited.connect(func():
+		panel.add_theme_stylebox_override("panel", style)
+	)
+	
+	return panel
+
+
+func _create_card_entry(card: CardData) -> HBoxContainer:
+	var hbox = HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 8)
+	
+	# Rarity indicator
+	var rarity_color := _get_rarity_color(card.rarity)
+	var rarity_dot = Label.new()
+	rarity_dot.text = "●"
+	rarity_dot.add_theme_color_override("font_color", rarity_color)
+	rarity_dot.add_theme_font_size_override("font_size", 12)
+	hbox.add_child(rarity_dot)
 	
 	# Mana cost
 	var mana = Label.new()
-	mana.text = "🔷 %d" % card.cost
-	mana.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	mana.add_theme_font_size_override("font_size", 16)
+	mana.text = "[%d]" % card.cost
+	mana.add_theme_font_size_override("font_size", 12)
 	mana.add_theme_color_override("font_color", Color(0.3, 0.6, 1.0))
-	vbox.add_child(mana)
+	hbox.add_child(mana)
 	
 	# Name
 	var name_lbl = Label.new()
 	name_lbl.text = card.card_name
-	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_lbl.add_theme_font_size_override("font_size", 14)
+	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_lbl.add_theme_font_size_override("font_size", 13)
 	name_lbl.add_theme_color_override("font_color", rarity_color)
 	name_lbl.clip_text = true
-	vbox.add_child(name_lbl)
+	hbox.add_child(name_lbl)
 	
 	# Stats for minions
 	if card.card_type == CardData.CardType.MINION:
 		var stats = Label.new()
-		stats.text = "⚔️ %d  ❤️ %d" % [card.attack, card.health]
-		stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		stats.add_theme_font_size_override("font_size", 12)
-		stats.add_theme_color_override("font_color", Color(0.8, 0.8, 0.85))
-		vbox.add_child(stats)
+		stats.text = "%d/%d" % [card.attack, card.health]
+		stats.add_theme_font_size_override("font_size", 11)
+		stats.add_theme_color_override("font_color", Color(0.7, 0.7, 0.75))
+		hbox.add_child(stats)
 	
-	# Rarity
-	var rarity = Label.new()
-	rarity.text = CardData.Rarity.keys()[card.rarity]
-	rarity.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	rarity.add_theme_font_size_override("font_size", 10)
-	rarity.add_theme_color_override("font_color", rarity_color.darkened(0.2))
-	vbox.add_child(rarity)
-	
-	return panel
+	return hbox
 
 
 func _get_rarity_color(rarity: CardData.Rarity) -> Color:
@@ -207,47 +304,70 @@ func _get_rarity_color(rarity: CardData.Rarity) -> Color:
 		_: return Color.WHITE
 
 
-## Called when a user chooses a bucket
-func _on_bucket_selected(cards_to_add: Array[CardData]) -> void:
-	print("[VictorySelection] Selected bucket with %d cards" % cards_to_add.size())
+func _apply_styling() -> void:
+	var btn_style = StyleBoxFlat.new()
+	btn_style.bg_color = Color(0.2, 0.22, 0.28)
+	btn_style.border_color = Color(0.4, 0.35, 0.25)
+	btn_style.set_border_width_all(2)
+	btn_style.set_corner_radius_all(6)
+	btn_style.set_content_margin_all(8)
 	
-	# 1. Retrieve the current run deck from GameManager
+	if skip_button:
+		skip_button.add_theme_stylebox_override("normal", btn_style)
+
+
+func _on_bucket_selected(cards: Array) -> void:
+	if selection_made:
+		return
+	selection_made = true
+	
+	var cards_typed: Array[CardData] = []
+	for card in cards:
+		if card is CardData:
+			cards_typed.append(card)
+	
+	print("[VictorySelection] Selected bucket with %d cards" % cards_typed.size())
+	
+	# Add cards to deck
 	var current_deck_meta = {}
 	if GameManager.has_meta("selected_deck"):
 		current_deck_meta = GameManager.get_meta("selected_deck")
 	
-	# Ensure the structure exists
 	if not current_deck_meta.has("cards"):
 		current_deck_meta["cards"] = []
 	
-	# 2. Append new card IDs (strings) to the deck list
-	for card in cards_to_add:
+	for card in cards_typed:
 		var card_id = card.id if not card.id.is_empty() else card.card_name.to_lower()
 		current_deck_meta["cards"].append(card_id)
 		print("[VictorySelection] Added card: %s" % card_id)
 	
-	# 3. Save updated deck back to GameManager
 	GameManager.set_meta("selected_deck", current_deck_meta)
 	
-	print("[VictorySelection] Updated Deck now has %d cards" % current_deck_meta["cards"].size())
+	_finalize_victory()
+
+
+func _on_skip_pressed() -> void:
+	if selection_made:
+		return
+	selection_made = true
 	
-	# 4. Award gold for winning
-	var gold_reward: int = 50
-	var battle_type: String = GameManager.get_meta("battle_type") if GameManager.has_meta("battle_type") else "normal"
-	if battle_type == "elite":
-		gold_reward = 100  # More gold for champion battles
-	
+	print("[VictorySelection] Skipped rewards")
+	_finalize_victory()
+
+
+func _finalize_victory() -> void:
+	# Award gold
+	var gold_reward := _get_gold_reward()
 	var player_gold: int = GameManager.get_meta("player_gold") if GameManager.has_meta("player_gold") else 0
 	player_gold += gold_reward
 	GameManager.set_meta("player_gold", player_gold)
 	print("[VictorySelection] Awarded %d gold. Total: %d" % [gold_reward, player_gold])
 	
-	# 5. Reset game state for next battle
+	# Reset game state for next battle
 	GameManager.reset_game()
 	
-	# 6. Check if we should return to week runner
+	# Check if we should return to week runner
 	if GameManager.has_meta("return_to_week_runner") and GameManager.get_meta("return_to_week_runner"):
-		# Clear the flag
 		GameManager.set_meta("return_to_week_runner", false)
 		
 		# Advance the day
@@ -259,13 +379,14 @@ func _on_bucket_selected(cards_to_add: Array[CardData]) -> void:
 		
 		get_tree().change_scene_to_file("res://scenes/week_runner.tscn")
 	else:
-		# Default behavior - go back to main menu or main game
 		get_tree().change_scene_to_file("res://scenes/start_screen.tscn")
+
+
+func _on_viewport_size_changed() -> void:
+	pass
 
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed:
 		if event.keycode == KEY_ESCAPE:
-			# Allow skipping reward selection (go with no reward)
-			var empty_cards: Array[CardData] = []
-			_on_bucket_selected(empty_cards)
+			_on_skip_pressed()
