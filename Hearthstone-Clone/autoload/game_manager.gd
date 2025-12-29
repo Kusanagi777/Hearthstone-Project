@@ -25,9 +25,6 @@ signal combat_occurred(attacker_data: Dictionary, defender_data: Dictionary)
 signal minion_died(player_id: int, minion: Node, board_position: int)
 signal minion_summoned(player_id: int, minion: Node)
 
-## Keyword signals
-signal ritual_performed(player_id: int, card: CardData, sacrificed: Array)
-signal fated_triggered(player_id: int, minion: Node, card: CardData)
 
 ## =============================================================================
 ## CONSTANTS
@@ -579,45 +576,6 @@ func _end_game(winner_id: int) -> void:
 	current_phase = GamePhase.GAME_OVER
 	print("[GameManager] === GAME OVER === Winner: Player %d" % winner_id)
 	game_ended.emit(winner_id)
-
-
-## =============================================================================
-## RITUAL SYSTEM
-## =============================================================================
-
-## Perform a Ritual sacrifice
-func perform_ritual(player_id: int, card: CardData, sacrifices: Array[Node]) -> bool:
-	if sacrifices.is_empty():
-		return false
-	
-	var required_sacrifices: int = card.get_ritual_cost()
-	if sacrifices.size() < required_sacrifices:
-		print("[GameManager] Ritual needs %d sacrifices, only %d provided" % [required_sacrifices, sacrifices.size()])
-		return false
-	
-	var sacrificed_cards: Array = []
-	
-	for minion in sacrifices:
-		if not is_instance_valid(minion):
-			continue
-		if minion.owner_id != player_id:
-			continue
-		
-		sacrificed_cards.append(minion.card_data)
-		
-		if minion.has_method("play_ritual_sacrifice_effect"):
-			await minion.play_ritual_sacrifice_effect()
-		
-		var board_pos: int = players[player_id]["board"].find(minion)
-		await _kill_minion(player_id, minion, board_pos)
-	
-	if sacrificed_cards.size() > 0:
-		ritual_performed.emit(player_id, card, sacrificed_cards)
-		print("[GameManager] Ritual performed! Sacrificed %d minions" % sacrificed_cards.size())
-		return true
-	
-	return false
-
 
 ## =============================================================================
 ## UTILITY FUNCTIONS

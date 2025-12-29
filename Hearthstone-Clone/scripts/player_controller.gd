@@ -185,7 +185,7 @@ func _try_play_card_to_lane(card_ui_instance: Control, lane_index: int, is_front
 			print("[PlayerController %d] Lane %d %s is occupied (need Huddle)" % [player_id, lane_index, "front" if is_front else "back"])
 			return false
 	
-	if GameManager.try_play_card(player_id, card, null):
+	if GameManager.play_card(player_id, card):
 		_animate_card_play(card_ui_instance)
 		
 		if card.card_type == CardData.CardType.MINION:
@@ -244,12 +244,6 @@ func _spawn_minion_in_lane(card: CardData, lane_index: int, is_front: bool, exis
 		# Register on board (but it's hidden behind the front minion)
 		GameManager.register_minion_on_board(player_id, minion_instance)
 		
-		# Trigger Huddle buff effect
-		_trigger_huddle_effect(minion_instance, existing_minion)
-		
-		# Check Fated bonus
-		if GameManager.check_fated_bonus(player_id, card, minion_instance):
-			_trigger_fated_effect(minion_instance)
 		
 		print("[PlayerController %d] Huddle minion %s attached behind %s" % [
 			player_id, card.card_name, existing_minion.card_data.card_name
@@ -277,37 +271,10 @@ func _spawn_minion_in_lane(card: CardData, lane_index: int, is_front: bool, exis
 	if card.has_keyword("Battlecry") or card.has_keyword("On-play"):
 		GameManager.trigger_battlecry(player_id, minion_instance, card, null)
 	
-	# Check Fated bonus
-	if GameManager.check_fated_bonus(player_id, card, minion_instance):
-		_trigger_fated_effect(minion_instance)
 	
 	_animate_minion_summon(minion_instance)
 	
 	return minion_instance
-
-
-func _trigger_huddle_effect(huddle_minion: Node, front_minion: Node) -> void:
-	# Default huddle buff - can be customized via effect scripts
-	# For now, give front minion +1/+1 as a simple buff
-	print("[PlayerController %d] Huddle effect: buffing %s" % [player_id, front_minion.card_data.card_name])
-	front_minion.buff_stats(1, 1)
-	
-	# Visual feedback
-	var tween := create_tween()
-	tween.tween_property(front_minion, "modulate", Color(0.5, 1.0, 0.5), 0.15)
-	tween.tween_property(front_minion, "modulate", Color.WHITE, 0.15)
-
-
-func _trigger_fated_effect(minion_instance: Node) -> void:
-	# Visual indicator for Fated triggering
-	if minion_instance.has_method("play_fated_effect"):
-		minion_instance.play_fated_effect()
-	else:
-		var tween := create_tween()
-		tween.tween_property(minion_instance, "modulate", Color(1.0, 0.8, 1.2), 0.2)
-		tween.tween_property(minion_instance, "modulate", Color.WHITE, 0.2)
-	
-	print("[PlayerController %d] Fated bonus activated for %s!" % [player_id, minion_instance.card_data.card_name])
 
 
 func _animate_minion_summon(minion_instance: Node) -> void:
@@ -404,38 +371,6 @@ func _on_huddle_promoted(promoted_player_id: int, promoted_minion: Node, lane_in
 	var tween := create_tween()
 	tween.tween_property(promoted_minion, "modulate", Color(0.5, 1.0, 0.8), 0.2)
 	tween.tween_property(promoted_minion, "modulate", Color.WHITE, 0.2)
-
-
-func _on_fated_triggered(fated_player_id: int, minion: Node, card: CardData) -> void:
-	if fated_player_id != player_id:
-		return
-	# Effect is handled by card's effect script, this is just for visual/audio feedback
-	print("[PlayerController %d] Fated triggered for %s" % [player_id, card.card_name])
-
-
-func _on_bully_triggered(bully_player_id: int, attacker: Node, defender: Node) -> void:
-	if bully_player_id != player_id:
-		return
-	# Bully bonus effect handled by card's effect script
-	print("[PlayerController %d] Bully triggered: %s attacking %s" % [
-		player_id, attacker.card_data.card_name, defender.card_data.card_name
-	])
-
-
-func _on_overclock_triggered(overclock_player_id: int, minion: Node, battery_spent: int) -> void:
-	if overclock_player_id != player_id:
-		return
-	print("[PlayerController %d] Overclock activated: %s spent %d Battery" % [
-		player_id, minion.card_data.card_name, battery_spent
-	])
-
-
-func _on_ritual_performed(ritual_player_id: int, card: CardData, sacrificed: Array) -> void:
-	if ritual_player_id != player_id:
-		return
-	print("[PlayerController %d] Ritual performed for %s, sacrificed %d minions" % [
-		player_id, card.card_name, sacrificed.size()
-	])
 
 
 ## ============================================================================
