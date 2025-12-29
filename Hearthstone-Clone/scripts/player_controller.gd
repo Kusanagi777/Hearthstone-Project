@@ -51,12 +51,6 @@ const REFERENCE_HEIGHT := 720.0
 func _ready() -> void:
 	GameManager.turn_started.connect(_on_turn_started)
 	GameManager.card_drawn.connect(_on_card_drawn)
-	GameManager.persistent_respawn_requested.connect(_on_persistent_respawn)
-	GameManager.huddle_promoted.connect(_on_huddle_promoted)
-	GameManager.fated_triggered.connect(_on_fated_triggered)
-	GameManager.bully_triggered.connect(_on_bully_triggered)
-	GameManager.overclock_triggered.connect(_on_overclock_triggered)
-	GameManager.ritual_performed.connect(_on_ritual_performed)
 	
 	call_deferred("_deferred_ready")
 
@@ -86,6 +80,7 @@ func _on_card_drawn(draw_player_id: int, card: CardData) -> void:
 		return
 	
 	if not hand_container:
+		push_warning("[PlayerController %d] Cannot add card - no hand_container!" % player_id)
 		return
 	
 	if not card_ui_scene:
@@ -780,6 +775,15 @@ func _ai_take_turn() -> void:
 	if not is_ai or not GameManager.is_player_turn(player_id):
 		return
 	
+	# Add this null check
+	if not hand_container:
+		push_warning("[PlayerTwoController %d] AI cannot take turn - no hand_container!" % player_id)
+		# Still end turn even if we can't play cards
+		await get_tree().create_timer(ai_action_delay).timeout
+		if GameManager.is_player_turn(player_id):
+			request_end_turn()
+		return
+	
 	await get_tree().create_timer(ai_action_delay).timeout
 	
 	# Play cards
@@ -818,6 +822,12 @@ func _ai_take_turn() -> void:
 
 func _ai_get_playable_cards() -> Array:
 	var playable: Array = []
+	
+	# Null check for hand_container
+	if not hand_container:
+		push_warning("[PlayerController %d] AI has no hand_container!" % player_id)
+		return playable
+	
 	var current_mana = GameManager.get_current_mana(player_id)
 	
 	for card_ui_instance in hand_container.get_children():

@@ -1,4 +1,7 @@
 # res://scripts/card_ui.gd
+# MODIFICATION: Hand hover behavior fix
+# When a card is hovered, other cards no longer reorganize/shift
+
 class_name card_ui
 extends Control
 
@@ -102,206 +105,9 @@ func _ready() -> void:
 	# Connect to mana changes
 	if not GameManager.mana_changed.is_connected(_on_mana_changed):
 		GameManager.mana_changed.connect(_on_mana_changed)
-	if not GameManager.turn_started.is_connected(_on_turn_started):
-		GameManager.turn_started.connect(_on_turn_started)
-	
-	# Connect to viewport size changes
-	get_viewport().size_changed.connect(_on_viewport_size_changed)
 
 
-## Calculate scale factor based on viewport size
-static func get_scale_factor() -> float:
-	var viewport_size := DisplayServer.window_get_size()
-	# Use the height for consistent scaling
-	var height_scale := viewport_size.y / REFERENCE_HEIGHT
-	# Clamp to reasonable bounds (don't scale below 1.0 or above 3.0)
-	return clampf(height_scale, 1.0, 3.0)
-
-
-## Apply responsive sizing based on viewport
-func _apply_responsive_size() -> void:
-	var scale_factor := get_scale_factor()
-	var scaled_size := BASE_CARD_SIZE * scale_factor
-	custom_minimum_size = scaled_size
-	size = scaled_size
-	
-	# Scale fonts
-	_apply_scaled_fonts(scale_factor)
-
-
-## Apply scaled font sizes
-func _apply_scaled_fonts(scale_factor: float) -> void:
-	if cost_label:
-		cost_label.add_theme_font_size_override("font_size", int(BASE_FONT_SIZES["cost"] * scale_factor))
-	if name_label:
-		name_label.add_theme_font_size_override("font_size", int(BASE_FONT_SIZES["name"] * scale_factor))
-	if attack_label:
-		attack_label.add_theme_font_size_override("font_size", int(BASE_FONT_SIZES["stats"] * scale_factor))
-	if health_label:
-		health_label.add_theme_font_size_override("font_size", int(BASE_FONT_SIZES["stats"] * scale_factor))
-	if description_label:
-		description_label.add_theme_font_size_override("normal_font_size", int(BASE_FONT_SIZES["description"] * scale_factor))
-
-
-## Handle viewport resize
-func _on_viewport_size_changed() -> void:
-	_apply_responsive_size()
-
-
-## Apply default styles to panels (can be overridden in editor)
-func _apply_default_styles() -> void:
-	# Card frame style
-	if card_frame and not card_frame.has_theme_stylebox_override("panel"):
-		var frame_style := StyleBoxFlat.new()
-		frame_style.bg_color = Color(0.15, 0.12, 0.1)
-		frame_style.border_color = Color(0.6, 0.5, 0.3)
-		frame_style.set_border_width_all(3)
-		frame_style.set_corner_radius_all(8)
-		card_frame.add_theme_stylebox_override("panel", frame_style)
-	
-	# Art panel style
-	if art_panel and not art_panel.has_theme_stylebox_override("panel"):
-		var art_style := StyleBoxFlat.new()
-		art_style.bg_color = Color(0.3, 0.35, 0.4)
-		art_style.set_border_width_all(1)
-		art_style.border_color = Color(0.2, 0.2, 0.2)
-		art_panel.add_theme_stylebox_override("panel", art_style)
-	
-	# Mana gem style
-	if mana_gem and not mana_gem.has_theme_stylebox_override("panel"):
-		var mana_style := StyleBoxFlat.new()
-		mana_style.bg_color = Color(0.1, 0.3, 0.8)
-		mana_style.set_corner_radius_all(12)
-		mana_gem.add_theme_stylebox_override("panel", mana_style)
-	
-	# Attack icon style
-	if attack_icon and not attack_icon.has_theme_stylebox_override("panel"):
-		var attack_style := StyleBoxFlat.new()
-		attack_style.bg_color = Color(0.8, 0.6, 0.1)
-		attack_style.set_corner_radius_all(4)
-		attack_icon.add_theme_stylebox_override("panel", attack_style)
-	
-	# Health icon style
-	if health_icon and not health_icon.has_theme_stylebox_override("panel"):
-		var health_style := StyleBoxFlat.new()
-		health_style.bg_color = Color(0.8, 0.2, 0.2)
-		health_style.set_corner_radius_all(4)
-		health_icon.add_theme_stylebox_override("panel", health_style)
-
-
-## Initialize the card with data
-func initialize(data: CardData, player_id: int) -> void:
-	card_data = data
-	owner_id = player_id
-	
-	# Ensure ready
-	if not is_inside_tree():
-		await ready
-	
-	_update_visuals()
-	_update_playability_visual()
-	
-	print("[CardUI] Initialized card: %s for player %d" % [data.card_name, player_id])
-
-
-## Update all visual elements from card data
-func _update_visuals() -> void:
-	if not card_data:
-		return
-	
-	if name_label:
-		name_label.text = card_data.card_name
-	
-	if cost_label:
-		cost_label.text = str(card_data.cost)
-	
-	# Show/hide attack and health based on card type
-	match card_data.card_type:
-		CardData.CardType.MINION:
-			if attack_label:
-				attack_label.text = str(card_data.attack)
-			if health_label:
-				health_label.text = str(card_data.health)
-			if attack_icon:
-				attack_icon.visible = true
-			if health_icon:
-				health_icon.visible = true
-		
-		CardData.CardType.LOCATION:
-			if attack_label:
-				attack_label.text = str(card_data.attack)
-			if health_label:
-				health_label.text = str(card_data.health)  # Durability
-			if attack_icon:
-				attack_icon.visible = true
-			if health_icon:
-				health_icon.visible = true
-	
-	if description_label:
-		if card_data.has_method("get_formatted_description"):
-			description_label.text = card_data.get_formatted_description()
-		else:
-			description_label.text = card_data.description
-	
-	if card_art and card_data.texture:
-		card_art.texture = card_data.texture
-	
-	# Color-code by rarity
-	_apply_rarity_styling()
-
-
-## Apply visual styling based on rarity
-func _apply_rarity_styling() -> void:
-	if not card_frame:
-		return
-	
-	if not card_data:
-		return
-	
-	var rarity_colors := {
-		CardData.Rarity.COMMON: Color(0.5, 0.5, 0.5),
-		CardData.Rarity.RARE: Color(0.0, 0.4, 1.0),
-		CardData.Rarity.EPIC: Color(0.6, 0.2, 0.8),
-		CardData.Rarity.LEGENDARY: Color(1.0, 0.6, 0.0)
-	}
-	
-	var border_color: Color = rarity_colors.get(card_data.rarity, Color(0.6, 0.5, 0.3))
-	
-	var current_style = card_frame.get_theme_stylebox("panel")
-	if current_style is StyleBoxFlat:
-		var style: StyleBoxFlat = current_style.duplicate()
-		style.border_color = border_color
-		card_frame.add_theme_stylebox_override("panel", style)
-
-
-## Update visual feedback for whether card is playable
-func _update_playability_visual() -> void:
-	if not is_instance_valid(self):
-		return
-	
-	if not card_data:
-		return
-	
-	var can_afford: bool = GameManager.get_current_mana(owner_id) >= card_data.cost
-	var is_turn: bool = GameManager.is_player_turn(owner_id)
-	var is_playable: bool = can_afford and is_turn and is_interactable
-	
-	# Dim unplayable cards
-	modulate.a = 1.0 if is_playable else 0.6
-	
-	# Highlight playable cards with glow
-	if highlight:
-		highlight.visible = is_playable
-		if is_playable:
-			highlight.color = Color(0.2, 1.0, 0.2, 0.3)
-
-
-func _on_mana_changed(player_id: int, _current: int, _maximum: int) -> void:
-	if player_id == owner_id:
-		_update_playability_visual()
-
-
-func _on_turn_started(_player_id: int) -> void:
+func _on_mana_changed(_player_id: int, _current: int, _max_val: int) -> void:
 	_update_playability_visual()
 
 
@@ -337,48 +143,65 @@ func _on_mouse_exited() -> void:
 
 
 ## Enter hover state
+## MODIFIED: Card hovers in place without affecting other cards
 func _enter_hover() -> void:
 	current_state = CardState.HOVERING
 	
-	# Store current global position before hovering
-	_hand_position = global_position
+	# Store current local position (relative to parent) for returning later
+	_hand_position = position
 	
-	# Use top_level to render above siblings in container
+	# Store where we are in global space before enabling top_level
+	var current_global := global_position
+	
+	# Use top_level to render above siblings WITHOUT affecting container layout
 	top_level = true
-	global_position = _hand_position
+	
+	# Restore global position (top_level changes coordinate system)
+	global_position = current_global
 	z_index = 100
 	
 	var hover_y_offset := HOVER_Y_OFFSET * get_scale_factor()
 	
+	# Scale up and move up slightly - card hovers IN PLACE
 	var tween := create_tween()
 	tween.set_parallel(true)
 	tween.set_ease(Tween.EASE_OUT)
 	tween.tween_property(self, "scale", Vector2.ONE * HOVER_SCALE, 0.1)
 	tween.tween_property(self, "global_position:y", global_position.y + hover_y_offset, 0.1)
+	
+	# NOTE: We do NOT call queue_sort() on the parent container
+	# This means other cards stay exactly where they are
 
 
 ## Exit hover state
+## MODIFIED: Returns to exact position without container reorganization
 func _exit_hover() -> void:
 	current_state = CardState.IN_HAND
+	
+	# Calculate target global position from stored local position
+	var target_global := global_position
+	if get_parent():
+		target_global = get_parent().global_position + _hand_position
 	
 	var tween := create_tween()
 	tween.set_parallel(true)
 	tween.set_ease(Tween.EASE_OUT)
 	tween.tween_property(self, "scale", Vector2.ONE * NORMAL_SCALE, 0.1)
-	tween.tween_property(self, "global_position", _hand_position, 0.1)
+	tween.tween_property(self, "global_position", target_global, 0.1)
 	
 	# Restore normal rendering after animation
 	tween.chain().tween_callback(_restore_from_top_level)
 
 
 ## Restore card from top_level mode
+## MODIFIED: Properly convert position when disabling top_level
 func _restore_from_top_level() -> void:
 	if current_state == CardState.IN_HAND:
+		# Restore the local position BEFORE disabling top_level
+		# This prevents the position jump
+		position = _hand_position
 		top_level = false
 		z_index = 0
-		# Let the container reposition us
-		if get_parent():
-			get_parent().queue_sort()
 
 
 ## Start dragging the card
@@ -389,14 +212,15 @@ func _start_drag(global_pos: Vector2) -> void:
 	if not is_interactable:
 		return
 	
-	# If we're hovering, _hand_position is already set correctly
-	# If not, store current global position
+	# If we're hovering, _hand_position is already set correctly (local coords)
+	# If not, store current local position
 	if current_state != CardState.HOVERING:
-		_hand_position = global_position
+		_hand_position = position
 		# Enable top_level if not already
 		if not top_level:
+			var current_global := global_position
 			top_level = true
-			global_position = _hand_position
+			global_position = current_global
 	
 	_hand_index = get_index()
 	_drag_offset = global_position - global_pos
@@ -436,20 +260,23 @@ func return_to_hand() -> void:
 	_is_dragging = false
 	z_index = 0
 	
+	# Calculate target global position from stored local position
+	var target_global := global_position
+	if get_parent():
+		target_global = get_parent().global_position + _hand_position
+	
 	# Animate back to hand position
 	var tween := create_tween()
 	tween.set_ease(Tween.EASE_OUT)
-	tween.tween_property(self, "global_position", _hand_position, 0.2)
+	tween.tween_property(self, "global_position", target_global, 0.2)
 	tween.tween_callback(_finish_return_to_hand)
 
 
 ## Called after return animation completes
 func _finish_return_to_hand() -> void:
-	# Disable top_level so container manages position again
+	# Restore the local position BEFORE disabling top_level
+	position = _hand_position
 	top_level = false
-	# Force container to recalculate layout
-	if get_parent():
-		get_parent().queue_sort()
 
 
 ## Set whether this card can be interacted with
@@ -462,4 +289,135 @@ func set_interactable(interactable: bool) -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED or what == NOTIFICATION_TRANSFORM_CHANGED:
 		if current_state == CardState.IN_HAND and not _is_dragging and not top_level:
-			_hand_position = global_position
+			# Store LOCAL position (relative to parent container)
+			_hand_position = position
+
+
+## Get responsive scale factor
+func get_scale_factor() -> float:
+	var viewport_size := get_viewport().get_visible_rect().size
+	return clamp(viewport_size.y / REFERENCE_HEIGHT, 0.5, 2.0)
+
+
+## Apply responsive sizing based on viewport
+func _apply_responsive_size() -> void:
+	var scale_factor := get_scale_factor()
+	var scaled_size := BASE_CARD_SIZE * scale_factor
+	custom_minimum_size = scaled_size
+	size = scaled_size
+	
+	# Scale font sizes
+	if cost_label:
+		cost_label.add_theme_font_size_override("font_size", int(BASE_FONT_SIZES["cost"] * scale_factor))
+	if name_label:
+		name_label.add_theme_font_size_override("font_size", int(BASE_FONT_SIZES["name"] * scale_factor))
+	if attack_label:
+		attack_label.add_theme_font_size_override("font_size", int(BASE_FONT_SIZES["stats"] * scale_factor))
+	if health_label:
+		health_label.add_theme_font_size_override("font_size", int(BASE_FONT_SIZES["stats"] * scale_factor))
+	if description_label:
+		description_label.add_theme_font_size_override("normal_font_size", int(BASE_FONT_SIZES["description"] * scale_factor))
+
+
+## Apply default visual styles
+func _apply_default_styles() -> void:
+	# Card frame style
+	if card_frame:
+		var frame_style := StyleBoxFlat.new()
+		frame_style.bg_color = Color(0.15, 0.15, 0.2)
+		frame_style.border_color = Color(0.4, 0.35, 0.25)
+		frame_style.set_border_width_all(2)
+		frame_style.set_corner_radius_all(8)
+		card_frame.add_theme_stylebox_override("panel", frame_style)
+	
+	# Mana gem style
+	if mana_gem:
+		var gem_style := StyleBoxFlat.new()
+		gem_style.bg_color = Color(0.2, 0.4, 0.8)
+		gem_style.set_corner_radius_all(12)
+		mana_gem.add_theme_stylebox_override("panel", gem_style)
+	
+	# Attack icon style
+	if attack_icon:
+		var atk_style := StyleBoxFlat.new()
+		atk_style.bg_color = Color(0.8, 0.6, 0.2)
+		atk_style.set_corner_radius_all(10)
+		attack_icon.add_theme_stylebox_override("panel", atk_style)
+	
+	# Health icon style
+	if health_icon:
+		var hp_style := StyleBoxFlat.new()
+		hp_style.bg_color = Color(0.7, 0.2, 0.2)
+		hp_style.set_corner_radius_all(10)
+		health_icon.add_theme_stylebox_override("panel", hp_style)
+
+
+## Setup the card with data
+func setup(data: CardData, player_id: int = 0) -> void:
+	card_data = data
+	owner_id = player_id
+	
+	if not is_node_ready():
+		await ready
+	
+	# Update visuals
+	if cost_label:
+		cost_label.text = str(data.cost)
+	if name_label:
+		name_label.text = data.card_name
+	if attack_label:
+		attack_label.text = str(data.attack)
+	if health_label:
+		health_label.text = str(data.health)
+	if description_label:
+		description_label.text = data.description
+	if card_art and data.texture:
+		card_art.texture = data.texture
+	
+	# Hide stats for action cards
+	var is_minion := data.card_type == CardData.CardType.MINION
+	if attack_icon:
+		attack_icon.visible = is_minion
+	if health_icon:
+		health_icon.visible = is_minion
+	
+	# Apply rarity styling
+	_apply_rarity_style(data.rarity)
+	
+	# Update playability
+	_update_playability_visual()
+
+
+## Apply rarity-based border color
+func _apply_rarity_style(rarity: CardData.Rarity) -> void:
+	if not card_frame:
+		return
+	
+	var border_color: Color
+	match rarity:
+		CardData.Rarity.COMMON:
+			border_color = Color(0.5, 0.5, 0.5)
+		CardData.Rarity.RARE:
+			border_color = Color(0.3, 0.5, 0.9)
+		CardData.Rarity.EPIC:
+			border_color = Color(0.6, 0.3, 0.8)
+		CardData.Rarity.LEGENDARY:
+			border_color = Color(1.0, 0.7, 0.2)
+	
+	var style: StyleBoxFlat = card_frame.get_theme_stylebox("panel").duplicate()
+	style.border_color = border_color
+	card_frame.add_theme_stylebox_override("panel", style)
+
+
+## Update visual to show if card is playable
+func _update_playability_visual() -> void:
+	if not card_data or not highlight:
+		return
+	
+	var can_play := GameManager.can_play_card(owner_id, card_data) and is_interactable
+	highlight.visible = can_play
+	
+	if can_play:
+		highlight.color = Color(0.3, 0.8, 0.3, 0.3)
+	else:
+		highlight.color = Color(0, 0, 0, 0)

@@ -6,7 +6,7 @@
 [ext_resource type="PackedScene" uid="uid://c7ww28dm0nbva" path="res://scenes/minion.tscn" id="4_bb2iq"]
 [ext_resource type="PackedScene" uid="uid://3raggsnv71v5" path="res://scenes/targeting_arrow.tscn" id="5_18r40"]
 
-[node name="MainGame" type="Control" node_paths=PackedStringArray("player_one", "player_two", "turn_button", "mana_label", "enemy_mana_label", "turn_indicator", "player_health_label", "enemy_health_label", "player_deck_label", "enemy_deck_label", "game_over_panel", "winner_label", "player_resource_label", "enemy_resource_label", "player_hand_container", "enemy_hand_container", "player_hero_area", "enemy_hero_area")]
+[node name="MainGame" type="Control"]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -14,24 +14,6 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_script")
-player_one = NodePath("PlayerOneController")
-player_two = NodePath("PlayerTwoController")
-turn_button = NodePath("GameArea/BoardSection/PlayerBoardRow/RightStats/TurnButton")
-mana_label = NodePath("GameArea/BoardSection/PlayerBoardRow/LeftStats/ManaLabel")
-enemy_mana_label = NodePath("GameArea/BoardSection/EnemyBoardRow/LeftStats/EnemyManaLabel")
-turn_indicator = NodePath("TurnIndicator")
-player_health_label = NodePath("GameArea/BoardSection/PlayerBoardRow/RightStats/PlayerHealthLabel")
-enemy_health_label = NodePath("GameArea/BoardSection/EnemyBoardRow/RightStats/EnemyHealthLabel")
-player_deck_label = NodePath("GameArea/BoardSection/PlayerBoardRow/LeftStats/PlayerDeckLabel")
-enemy_deck_label = NodePath("GameArea/BoardSection/EnemyBoardRow/LeftStats/EnemyDeckLabel")
-game_over_panel = NodePath("GameOverPanel")
-winner_label = NodePath("GameOverPanel/WinnerLabel")
-player_resource_label = NodePath("GameArea/PlayerHeroRow/PlayerResourcePanel/PlayerResourceLabel")
-enemy_resource_label = NodePath("GameArea/EnemyHeroRow/EnemyResourcePanel/EnemyResourceLabel")
-player_hand_container = NodePath("GameArea/PlayerHeroRow/PlayerHandPanel/PlayerHandContainer")
-enemy_hand_container = NodePath("GameArea/EnemyHeroRow/EnemyHandPanel/EnemyHandContainer")
-player_hero_area = NodePath("GameArea/PlayerHeroRow/PlayerHeroPanel")
-enemy_hero_area = NodePath("GameArea/EnemyHeroRow/EnemyHeroPanel")
 
 [node name="Background" type="ColorRect" parent="."]
 z_index = -10
@@ -162,7 +144,7 @@ layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 mouse_filter = 2
-theme_override_constants/separation = 6
+theme_override_constants/separation = 4
 alignment = 1
 
 [node name="Lane1" type="PanelContainer" parent="GameArea/BoardSection/EnemyBoardRow/EnemyBoardArea/EnemyBackRow/EnemyBackLanes"]
@@ -192,6 +174,24 @@ mouse_filter = 2
 layout_mode = 2
 mouse_filter = 2
 
+[node name="Lane4" type="PanelContainer" parent="GameArea/BoardSection/EnemyBoardRow/EnemyBoardArea/EnemyBackRow/EnemyBackLanes"]
+custom_minimum_size = Vector2(80, 85)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="MinionSlot" type="CenterContainer" parent="GameArea/BoardSection/EnemyBoardRow/EnemyBoardArea/EnemyBackRow/EnemyBackLanes/Lane4"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="Lane5" type="PanelContainer" parent="GameArea/BoardSection/EnemyBoardRow/EnemyBoardArea/EnemyBackRow/EnemyBackLanes"]
+custom_minimum_size = Vector2(80, 85)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="MinionSlot" type="CenterContainer" parent="GameArea/BoardSection/EnemyBoardRow/EnemyBoardArea/EnemyBackRow/EnemyBackLanes/Lane5"]
+layout_mode = 2
+mouse_filter = 2
+
 [node name="EnemyFrontRow" type="PanelContainer" parent="GameArea/BoardSection/EnemyBoardRow/EnemyBoardArea"]
 custom_minimum_size = Vector2(300, 90)
 layout_mode = 2
@@ -203,7 +203,7 @@ layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 mouse_filter = 2
-theme_override_constants/separation = 6
+theme_override_constants/separation = 4
 alignment = 1
 
 [node name="Lane1" type="PanelContainer" parent="GameArea/BoardSection/EnemyBoardRow/EnemyBoardArea/EnemyFrontRow/EnemyFrontLanes"]
@@ -230,6 +230,24 @@ layout_mode = 2
 mouse_filter = 2
 
 [node name="MinionSlot" type="CenterContainer" parent="GameArea/BoardSection/EnemyBoardRow/EnemyBoardArea/EnemyFrontRow/EnemyFrontLanes/Lane3"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="Lane5" type="PanelContainer" parent="GameArea/BoardSection/EnemyBoardRow/EnemyBoardArea/EnemyFrontRow/EnemyFrontLanes"]
+custom_minimum_size = Vector2(80, 85)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="MinionSlot" type="CenterContainer" parent="GameArea/BoardSection/EnemyBoardRow/EnemyBoardArea/EnemyFrontRow/EnemyFrontLanes/Lane5"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="Lane4" type="PanelContainer" parent="GameArea/BoardSection/EnemyBoardRow/EnemyBoardArea/EnemyFrontRow/EnemyFrontLanes"]
+custom_minimum_size = Vector2(80, 85)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="MinionSlot" type="CenterContainer" parent="GameArea/BoardSection/EnemyBoardRow/EnemyBoardArea/EnemyFrontRow/EnemyFrontLanes/Lane4"]
 layout_mode = 2
 mouse_filter = 2
 
@@ -305,7 +323,7 @@ layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 mouse_filter = 2
-theme_override_constants/separation = 6
+theme_override_constants/separation = 4
 alignment = 1
 
 [node name="Lane1" type="PanelContainer" parent="GameArea/BoardSection/PlayerBoardRow/PlayerBoardArea/PlayerFrontRow/PlayerFrontLanes"]
@@ -335,6 +353,24 @@ mouse_filter = 2
 layout_mode = 2
 mouse_filter = 2
 
+[node name="Lane4" type="PanelContainer" parent="GameArea/BoardSection/PlayerBoardRow/PlayerBoardArea/PlayerFrontRow/PlayerFrontLanes"]
+custom_minimum_size = Vector2(80, 85)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="MinionSlot" type="CenterContainer" parent="GameArea/BoardSection/PlayerBoardRow/PlayerBoardArea/PlayerFrontRow/PlayerFrontLanes/Lane4"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="Lane5" type="PanelContainer" parent="GameArea/BoardSection/PlayerBoardRow/PlayerBoardArea/PlayerFrontRow/PlayerFrontLanes"]
+custom_minimum_size = Vector2(80, 85)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="MinionSlot" type="CenterContainer" parent="GameArea/BoardSection/PlayerBoardRow/PlayerBoardArea/PlayerFrontRow/PlayerFrontLanes/Lane5"]
+layout_mode = 2
+mouse_filter = 2
+
 [node name="PlayerBackRow" type="PanelContainer" parent="GameArea/BoardSection/PlayerBoardRow/PlayerBoardArea"]
 custom_minimum_size = Vector2(300, 90)
 layout_mode = 2
@@ -346,7 +382,7 @@ layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 mouse_filter = 2
-theme_override_constants/separation = 6
+theme_override_constants/separation = 4
 alignment = 1
 
 [node name="Lane1" type="PanelContainer" parent="GameArea/BoardSection/PlayerBoardRow/PlayerBoardArea/PlayerBackRow/PlayerBackLanes"]
@@ -373,6 +409,24 @@ layout_mode = 2
 mouse_filter = 2
 
 [node name="MinionSlot" type="CenterContainer" parent="GameArea/BoardSection/PlayerBoardRow/PlayerBoardArea/PlayerBackRow/PlayerBackLanes/Lane3"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="Lane4" type="PanelContainer" parent="GameArea/BoardSection/PlayerBoardRow/PlayerBoardArea/PlayerBackRow/PlayerBackLanes"]
+custom_minimum_size = Vector2(80, 85)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="MinionSlot" type="CenterContainer" parent="GameArea/BoardSection/PlayerBoardRow/PlayerBoardArea/PlayerBackRow/PlayerBackLanes/Lane4"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="Lane5" type="PanelContainer" parent="GameArea/BoardSection/PlayerBoardRow/PlayerBoardArea/PlayerBackRow/PlayerBackLanes"]
+custom_minimum_size = Vector2(80, 85)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="MinionSlot" type="CenterContainer" parent="GameArea/BoardSection/PlayerBoardRow/PlayerBoardArea/PlayerBackRow/PlayerBackLanes/Lane5"]
 layout_mode = 2
 mouse_filter = 2
 
@@ -502,15 +556,21 @@ text = "Player 1 Wins!"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="PlayerOneController" type="Node" parent="."]
+[node name="PlayerOneController" type="Node" parent="." node_paths=PackedStringArray("hand_container", "enemy_hero_area", "hero_area")]
 script = ExtResource("2_player_controller")
+hand_container = NodePath("../GameArea/PlayerHeroRow/PlayerHandPanel/PlayerHandContainer")
+enemy_hero_area = NodePath("../GameArea/EnemyHeroRow/EnemyHeroPanel")
+hero_area = NodePath("../GameArea/PlayerHeroRow/PlayerHeroPanel")
 card_ui_scene = ExtResource("3_mgc0q")
 minion_scene = ExtResource("4_bb2iq")
 targeting_arrow_scene = ExtResource("5_18r40")
 
-[node name="PlayerTwoController" type="Node" parent="."]
+[node name="PlayerTwoController" type="Node" parent="." node_paths=PackedStringArray("hand_container", "enemy_hero_area", "hero_area")]
 script = ExtResource("2_player_controller")
 player_id = 1
+hand_container = NodePath("../GameArea/EnemyHeroRow/EnemyHandPanel/EnemyHandContainer")
+enemy_hero_area = NodePath("../GameArea/PlayerHeroRow/PlayerHeroPanel")
+hero_area = NodePath("../GameArea/EnemyHeroRow/EnemyHeroPanel")
 card_ui_scene = ExtResource("3_mgc0q")
 minion_scene = ExtResource("4_bb2iq")
 targeting_arrow_scene = ExtResource("5_18r40")

@@ -5,7 +5,8 @@ extends Resource
 ## Enumeration for card types (simplified - no locations or class powers)
 enum CardType {
 	MINION,
-	ACTION
+	ACTION,
+	ASPECT
 }
 
 ## Enumeration for card rarity
@@ -17,7 +18,7 @@ enum Rarity {
 }
 
 ## Minion Tags - Bitflag constants for minion types
-class MinionTags:
+class minion_tags:
 	const NONE: int = 0
 	const BEAST: int = 1 << 0     # 1
 	const MECH: int = 1 << 1      # 2
@@ -75,7 +76,7 @@ class MinionTags:
 @export var keywords: Array[String] = []
 
 ## Minion type tags (Beast, Mech, Idol, Undead, Dragon) - stored as bitflags
-@export var minion_tags: int = MinionTags.NONE
+@export var min_tags: int = MinionTags.NONE
 
 ## Runtime-only fields (not saved to resource)
 var _runtime_id: String = ""
@@ -185,17 +186,17 @@ func get_ritual_cost() -> int:
 
 ## Check if this card has a specific minion tag
 func has_minion_tag(tag: int) -> bool:
-	return (minion_tags & tag) != 0
+	return (min_tags & tag) != 0
 
 
 ## Add a minion tag
 func add_minion_tag(tag: int) -> void:
-	minion_tags |= tag
+	min_tags |= tag
 
 
 ## Remove a minion tag
 func remove_minion_tag(tag: int) -> void:
-	minion_tags &= ~tag
+	min_tags &= ~tag
 
 
 ## Get all minion tags as an array of strings
