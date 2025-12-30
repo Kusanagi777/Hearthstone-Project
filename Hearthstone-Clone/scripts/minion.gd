@@ -62,17 +62,17 @@ var drawn_this_turn: bool = false
 var huddled_minion: Node = null
 
 ## UI References
-@onready var frame: PanelContainer = $Frame
-@onready var art_panel: PanelContainer = $Frame/VBox/ArtPanel
+@onready var frame: Panel = $Frame
+@onready var art_panel: Panel = $Frame/VBox/ArtPanel
 @onready var card_art: TextureRect = $Frame/VBox/ArtPanel/CardArt
 @onready var name_label: Label = $Frame/VBox/NameLabel
-@onready var attack_icon: PanelContainer = $Frame/AttackIcon
+@onready var attack_icon: Panel = $Frame/AttackIcon
 @onready var attack_label: Label = $Frame/AttackIcon/AttackLabel
-@onready var health_icon: PanelContainer = $Frame/HealthIcon
+@onready var health_icon: Panel = $Frame/HealthIcon
 @onready var health_label: Label = $Frame/HealthIcon/HealthLabel
 @onready var taunt_border: Panel = $Frame/TauntBorder
-@onready var divine_shield_effect: Panel = $Frame/ShieldedEffect
-@onready var highlight: Panel = $Frame/Highlight
+@onready var divine_shield_effect: ColorRect = $Frame/DivineShieldEffect
+@onready var highlight: ColorRect = $Frame/Highlight
 @onready var sleeping_icon: Label = $Frame/SleepingIcon
 @onready var damage_label: Label = $Frame/DamageLabel
 @onready var huddle_indicator: Panel = $Frame/HuddleIndicator

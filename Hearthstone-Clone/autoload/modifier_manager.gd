@@ -1,4 +1,3 @@
-class_name ModifierManager
 extends Node
 ## Singleton manager for all game modifiers.
 ## Add this as an AutoLoad in Project Settings.

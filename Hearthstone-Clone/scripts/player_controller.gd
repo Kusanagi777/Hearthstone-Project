@@ -45,7 +45,7 @@ var _selected_attacker: Node = null
 @export var ai_action_delay: float = 0.8
 
 ## Reference resolution for scaling
-const REFERENCE_HEIGHT := 720.0
+const REFERENCE_HEIGHT = 720.0
 
 
 func _ready() -> void:
@@ -137,7 +137,7 @@ func _create_card_ui(card: CardData) -> void:
 		push_warning("[PlayerController %d] No card_ui_scene assigned!" % player_id)
 		return
 	
-	var card_ui := card_ui_scene.instantiate()
+	var card_ui = card_ui_scene.instantiate()
 	hand_container.add_child(card_ui)
 	
 	if card_ui.has_method("setup"):
@@ -201,8 +201,8 @@ func _try_play_card_to_lane(card_ui: Control, lane: Control) -> void:
 	# Play the card
 	if GameManager.play_card(player_id, card_data):
 		# Spawn minion
-		var lane_index := lane.get_meta("lane_index", 0)
-		var is_front := lane.get_meta("is_front", true)
+		var lane_index = lane.get_meta("lane_index", 0)
+		var is_front = lane.get_meta("is_front", true)
 		_spawn_minion(card_data, lane_index, is_front, lane)
 		
 		# Remove card UI from hand
@@ -214,8 +214,8 @@ func _spawn_minion(card_data: CardData, lane_index: int, is_front: bool, lane: C
 		push_warning("[PlayerController %d] No minion_scene assigned!" % player_id)
 		return
 	
-	var minion := minion_scene.instantiate()
-	var slot := _get_minion_slot(lane)
+	var minion = minion_scene.instantiate()
+	var slot = _get_minion_slot(lane)
 	
 	if not slot:
 		push_warning("[PlayerController %d] No slot found in lane!" % player_id)
@@ -252,7 +252,7 @@ func _get_minion_slot(lane: Control) -> Control:
 
 
 func _is_lane_empty(lane: Control) -> bool:
-	var slot := _get_minion_slot(lane)
+	var slot = _get_minion_slot(lane)
 	if not slot:
 		return false
 	return slot.get_child_count() == 0
@@ -300,11 +300,11 @@ func _try_start_arrow_interaction(minion_instance: Node) -> void:
 			_on_minion_targeted(minion_instance)
 		return
 	
-	var can_attack_enemies := minion_instance.can_attack()
+	var can_attack_enemies = minion_instance.can_attack()
 	if not minion_instance.is_front_row and not minion_instance.has_snipe:
 		can_attack_enemies = false
 	
-	var can_move_lanes := (not minion_instance.has_attacked) and (not minion_instance.has_moved_this_turn)
+	var can_move_lanes = (not minion_instance.has_attacked) and (not minion_instance.has_moved_this_turn)
 	
 	if can_attack_enemies or can_move_lanes:
 		_selected_attacker = minion_instance
@@ -334,7 +334,7 @@ func _on_minion_targeted(minion_instance: Node) -> void:
 		_cancel_targeting()
 		return
 	
-	var allowed_to_attack := _selected_attacker.can_attack()
+	var allowed_to_attack = _selected_attacker.can_attack()
 	if not _selected_attacker.is_front_row and not _selected_attacker.has_snipe:
 		allowed_to_attack = false
 	
@@ -360,8 +360,8 @@ func _on_minion_targeted(minion_instance: Node) -> void:
 		_cancel_targeting()
 		return
 	
-	var is_front_row_target := minion_instance.is_front_row
-	var front_row_empty := _is_enemy_front_row_empty()
+	var is_front_row_target = minion_instance.is_front_row
+	var front_row_empty = _is_enemy_front_row_empty()
 	
 	if not _selected_attacker.has_snipe:
 		if not is_front_row_target and not front_row_empty:
@@ -395,7 +395,7 @@ func target_enemy_hero() -> void:
 		for lane in enemy_front_lanes:
 			if not _is_lane_empty(lane):
 				# Check for taunt
-				var slot := _get_minion_slot(lane)
+				var slot = _get_minion_slot(lane)
 				for child in slot.get_children():
 					if child is Minion and child.has_taunt:
 						print("[PlayerController %d] Must attack Taunt minion first!" % player_id)
@@ -403,7 +403,7 @@ func target_enemy_hero() -> void:
 						return
 	
 	# Attack enemy hero
-	var enemy_id := 1 if player_id == 0 else 0
+	var enemy_id = 1 if player_id == 0 else 0
 	GameManager.attack_hero(_selected_attacker, enemy_id)
 	
 	targeting_ended.emit(_selected_attacker, null)
@@ -442,15 +442,15 @@ func _highlight_valid_targets() -> void:
 		return
 	
 	# Get all potential targets
-	var all_enemy_minions := _get_all_enemy_minions()
+	var all_enemy_minions = _get_all_enemy_minions()
 	
 	# MODIFIER HOOK: Filter targets through modifiers
-	var valid_targets := all_enemy_minions
+	var valid_targets = all_enemy_minions
 	if ModifierManager:
 		valid_targets = ModifierManager.filter_targets(_selected_attacker, all_enemy_minions)
 	
 	for minion in all_enemy_minions:
-		var is_valid := minion in valid_targets
+		var is_valid = minion in valid_targets
 		is_valid = is_valid and not minion.has_hidden
 		is_valid = is_valid and GameManager.is_valid_attack_target(_selected_attacker.owner_id, minion)
 		
@@ -487,8 +487,8 @@ func _check_attack_target(global_pos: Vector2) -> void:
 		for lane in front_lanes + back_lanes:
 			if lane and lane.get_global_rect().has_point(global_pos):
 				if _is_lane_empty(lane):
-					var lane_index := lane.get_meta("lane_index", -1)
-					var is_front := lane.get_meta("is_front", false)
+					var lane_index = lane.get_meta("lane_index", -1)
+					var is_front = lane.get_meta("is_front", false)
 					
 					if lane_index == _selected_attacker.lane_index and is_front == _selected_attacker.is_front_row:
 						pass  # Same position, ignore
@@ -503,13 +503,13 @@ func _check_attack_target(global_pos: Vector2) -> void:
 
 func _move_minion_to_row(minion: Node, to_front: bool, to_lane: int) -> void:
 	# Remove from current position
-	var current_parent := minion.get_parent()
+	var current_parent = minion.get_parent()
 	if current_parent:
 		current_parent.remove_child(minion)
 	
 	# Find new lane
 	var target_lane: Control = null
-	var lanes := front_lanes if to_front else back_lanes
+	var lanes = front_lanes if to_front else back_lanes
 	for lane in lanes:
 		if lane.get_meta("lane_index", -1) == to_lane:
 			target_lane = lane
@@ -520,7 +520,7 @@ func _move_minion_to_row(minion: Node, to_front: bool, to_lane: int) -> void:
 		current_parent.add_child(minion)
 		return
 	
-	var slot := _get_minion_slot(target_lane)
+	var slot = _get_minion_slot(target_lane)
 	slot.add_child(minion)
 	
 	minion.is_front_row = to_front
@@ -579,7 +579,7 @@ func _ai_take_turn() -> void:
 
 
 func _ai_play_cards() -> void:
-	var played_any := true
+	var played_any = true
 	
 	while played_any and GameManager.is_player_turn(player_id):
 		played_any = false
@@ -598,7 +598,7 @@ func _ai_play_cards() -> void:
 		)
 		
 		for card_info in playable_cards:
-			var lane := _ai_find_empty_lane()
+			var lane = _ai_find_empty_lane()
 			if lane:
 				await get_tree().create_timer(ai_action_delay).timeout
 				_try_play_card_to_lane(card_info["ui"], lane)
@@ -618,7 +618,7 @@ func _ai_find_empty_lane() -> Control:
 
 
 func _ai_attack_with_minions() -> void:
-	var my_minions := _get_all_minions()
+	var my_minions = _get_all_minions()
 	
 	for minion in my_minions:
 		if not GameManager.is_player_turn(player_id):
@@ -633,18 +633,18 @@ func _ai_attack_with_minions() -> void:
 		await get_tree().create_timer(ai_action_delay).timeout
 		
 		# Find a target
-		var target := _ai_find_best_target(minion)
+		var target = _ai_find_best_target(minion)
 		if target:
 			GameManager.execute_combat(minion, target)
 		elif _is_enemy_front_row_empty():
 			# Attack hero
-			var enemy_id := 1 if player_id == 0 else 0
+			var enemy_id = 1 if player_id == 0 else 0
 			if not minion.just_played or minion.has_charge or not minion.has_rush:
 				GameManager.attack_hero(minion, enemy_id)
 
 
 func _ai_find_best_target(attacker: Node) -> Node:
-	var enemy_minions := _get_all_enemy_minions()
+	var enemy_minions = _get_all_enemy_minions()
 	
 	# MODIFIER HOOK: Filter targets
 	if ModifierManager:

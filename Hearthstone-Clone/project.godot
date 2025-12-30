@@ -18,8 +18,8 @@ config/icon="res://icon.svg"
 [autoload]
 
 GameManager="*res://autoload/game_manager.gd"
+ModifierManager="*res://autoload/modifier_manager.gd"
 DebugMenu="*res://autoload/debug_menu.gd"
-Modifier_Manager="*res://autoload/modifier_manager.gd"
 
 [display]
 

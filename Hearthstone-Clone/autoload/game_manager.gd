@@ -721,7 +721,7 @@ func _check_minion_deaths() -> void:
 
 
 func _handle_minion_death(player_id: int, minion: Node) -> void:
-	var board_position := players[player_id]["board"].find(minion)
+	var board_position = players[player_id]["board"].find(minion)
 	
 	# Handle Persistent keyword
 	if minion.has_persistent:
