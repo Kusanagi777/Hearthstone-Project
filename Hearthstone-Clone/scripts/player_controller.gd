@@ -180,7 +180,7 @@ func _on_card_drag_ended(card_ui: Control, global_pos: Vector2) -> void:
 	for lane in front_lanes + back_lanes:
 		if lane and lane.get_global_rect().has_point(global_pos):
 			_try_play_card_to_lane(card_ui, lane)
-		return
+			return
 
 	# No valid lane found - return card to hand
 	if card_ui.has_method("return_to_hand"):

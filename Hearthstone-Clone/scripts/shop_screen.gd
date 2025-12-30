@@ -99,6 +99,17 @@ func _ready() -> void:
 	
 	print("[ShopScreen] Opened with %d gold" % player_gold)
 
+func _process(_delta: float) -> void:
+	# Keep gold display in sync with GameManager
+	var current_gold: int = GameManager.get_meta("player_gold") if GameManager.has_meta("player_gold") else 0
+	if current_gold != player_gold:
+		player_gold = current_gold
+		gold_label.text = str(player_gold)
+		
+		# Update buy button state if an item is selected
+		if selected_item_panel and not selected_item.is_empty():
+			var display_cost: int = selected_item_panel.get_meta("display_cost")
+			buy_button.disabled = (player_gold < display_cost)
 
 func _load_card_database() -> void:
 	## Load cards from res://data/cards/ directory
