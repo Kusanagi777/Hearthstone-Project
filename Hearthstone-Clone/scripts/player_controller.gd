@@ -173,40 +173,52 @@ func _on_card_drag_started(card_ui: Control) -> void:
 func _on_card_drag_ended(card_ui: Control, global_pos: Vector2) -> void:
 	if is_ai or not GameManager.is_player_turn(player_id):
 		return
-	
+
 	_dragged_card = null
-	
+
 	# Check if dropped on a valid lane
 	for lane in front_lanes + back_lanes:
 		if lane and lane.get_global_rect().has_point(global_pos):
 			_try_play_card_to_lane(card_ui, lane)
-			return
+		return
+
+	# No valid lane found - return card to hand
+	if card_ui.has_method("return_to_hand"):
+		card_ui.return_to_hand()
 
 
 func _try_play_card_to_lane(card_ui: Control, lane: Control) -> void:
 	var card_data: CardData = card_ui.card_data
 	if not card_data:
+		card_ui.return_to_hand()
 		return
-	
+
 	# Check if can play (includes modifier checks via GameManager)
 	if not GameManager.can_play_card(player_id, card_data):
 		print("[PlayerController %d] Cannot play card - insufficient mana or blocked" % player_id)
+		card_ui.return_to_hand()
 		return
-	
-	# Check lane availability (unless Huddle)
-	if not card_data.has_keyword("Huddle") and not _is_lane_empty(lane):
-		print("[PlayerController %d] Lane is occupied!" % player_id)
-		return
-	
+
+	# Check lane availability only for minions (unless Huddle)
+	if card_data.card_type == CardData.CardType.MINION:
+		if not card_data.has_keyword("Huddle") and not _is_lane_empty(lane):
+			print("[PlayerController %d] Lane is occupied!" % player_id)
+			card_ui.return_to_hand()
+			return
+
 	# Play the card
 	if GameManager.play_card(player_id, card_data):
-		# Spawn minion
-		var lane_index = lane.get_meta("lane_index", 0)
-		var is_front = lane.get_meta("is_front", true)
-		_spawn_minion(card_data, lane_index, is_front, lane)
-		
-		# Remove card UI from hand
+		if card_data.card_type == CardData.CardType.MINION:
+			var lane_index = lane.get_meta("lane_index", 0)
+			var is_front = lane.get_meta("is_front", true)
+			_spawn_minion(card_data, lane_index, is_front, lane)
+		else:
+			print("[PlayerController %d] Played action: %s" % [player_id, card_data.card_name])
+
 		card_ui.queue_free()
+	else:
+		# Play failed for some reason
+		card_ui.return_to_hand()
 
 
 func _spawn_minion(card_data: CardData, lane_index: int, is_front: bool, lane: Control) -> void:
