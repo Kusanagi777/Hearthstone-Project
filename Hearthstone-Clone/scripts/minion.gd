@@ -48,8 +48,6 @@ var has_snipe: bool = false        # Can attack from back row / target back row
 
 ## NEW KEYWORD FLAGS
 var has_bully: bool = false        # Bonus effect when attacking weaker targets
-var has_overclock: bool = false    # Spend Battery for bonus effect
-var overclock_cost: int = 0        # Battery cost for Overclock
 var has_huddle: bool = false       # Can be played in occupied space
 var has_ritual: bool = false       # Sacrifice minions for bonus
 var ritual_cost: int = 0           # Number of minions to sacrifice
@@ -180,7 +178,6 @@ func _parse_keywords() -> void:
 	has_huddle = card_data.has_keyword("Huddle")
 	has_ritual = card_data.has_keyword("Ritual")
 	has_fated = card_data.has_keyword("Fated")
-	has_overclock = card_data.has_keyword("Overclock")
 	
 	if has_charge:
 		just_played = false
