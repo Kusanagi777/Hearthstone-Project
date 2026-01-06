@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/card_data.gd" id="1_card"]
+
+[resource]
+script = ExtResource("1_card")
+name = "Goblin Grunt"
+cost = 1
+type = "Unit"
+attack = 2
+health = 1
+tags = Array[String](["Beast", "Warrior"])
+rarity = "Common"
+text = "Deploy: If you have another [Beast], gain +1 Attack."

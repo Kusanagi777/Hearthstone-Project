@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/card_data.gd" id="1_card"]
+
+[resource]
+script = ExtResource("1_card")
+name = "Chain Lightning"
+cost = 4
+type = "Action"
+attack = 0
+health = 0
+tags = Array[String]([])
+rarity = "Rare"
+text = "Deal 3 damage to 3 random enemies."

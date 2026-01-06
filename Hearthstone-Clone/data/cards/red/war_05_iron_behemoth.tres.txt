@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/card_data.gd" id="1_card"]
+
+[resource]
+script = ExtResource("1_card")
+name = "Iron Behemoth"
+cost = 5
+type = "Unit"
+attack = 5
+health = 5
+tags = Array[String](["Construct", "Titan"])
+rarity = "Epic"
+text = "Aggressive. Pierce."

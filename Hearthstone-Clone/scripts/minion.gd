@@ -34,30 +34,65 @@ var is_targetable: bool = false
 var _is_dragging: bool = false
 var _drag_offset: Vector2 = Vector2.ZERO
 
-## Keyword flags - Using YOUR custom keyword names
-var has_charge: bool = false       # Can attack when summoned
+## Combat Keywords
+var has_charge: bool = false       # Can attack immediately when summoned
 var has_rush: bool = false         # Can attack minions (not heroes) when summoned
-var has_taunt: bool = false        # Protects other minions in same row
-var has_shielded: bool = false     # Next damage instance is reduced to 0
 var has_aggressive: bool = false   # Can attack twice per turn
-var has_hidden: bool = false       # Cannot be targeted by opponents
-var has_drain: bool = false        # Damage dealt heals your hero
-var has_lethal: bool = false       # Any damage destroys the target
-var has_persistent: bool = false   # Returns with 1 HP when destroyed
+var has_taunt: bool = false        # Protects other minions in same row
+var has_pierce: bool = false       # Excess damage goes to enemy hero
 var has_snipe: bool = false        # Can attack from back row / target back row
-
-## NEW KEYWORD FLAGS
 var has_bully: bool = false        # Bonus effect when attacking weaker targets
-var has_huddle: bool = false       # Can be played in occupied space
-var has_ritual: bool = false       # Sacrifice minions for bonus
-var ritual_cost: int = 0           # Number of minions to sacrifice
+var has_lethal: bool = false       # Any damage destroys the target
+var has_stun: bool = false         # Currently stunned (cannot attack this turn)
+
+## Defensive Keywords
+var has_shielded: bool = false     # Next damage instance is reduced to 0
+var has_ward: bool = false         # Cannot be targeted by action cards
+var has_hidden: bool = false       # Cannot be targeted by opponents
+var has_illusion: bool = false     # Dies on any interaction
+var resist_value: int = 0          # Takes X less damage
+
+## Trigger Keywords (these are usually effect-based, flag indicates presence)
+var has_deploy: bool = false       # Effect on play (on-play)
+var has_last_words: bool = false   # Effect on death (on-death)
+var has_bounty: bool = false       # Opponent gets reward on death
+var has_empowered: bool = false    # Bonus after action card played
 var has_fated: bool = false        # Bonus if played same turn as drawn
 
-## Track if drawn this turn (for Fated)
-var drawn_this_turn: bool = false
+## Resource Keywords
+var has_drain: bool = false        # Damage dealt heals your hero
+var has_affinity: bool = false     # Cost reduction based on tags
+var affinity_tag: int = 0          # Which tag reduces cost
+var has_sacrifice: bool = false    # Sacrifice minions for effect
+var sacrifice_cost: int = 0        # Number of minions to sacrifice
+var has_ritual: bool = false       # Optional sacrifice for bonus
+var ritual_cost: int = 0           # Number of minions for ritual
+var has_conduit: bool = false      # Boost action card damage
+var conduit_value: int = 0         # Amount of damage boost
 
-## Huddle support
-var huddled_minion: Node = null
+## Utility Keywords
+var has_echo: bool = false         # Creates copy in hand when played
+var has_draft: bool = false        # Choose from 3 random cards
+var has_cycle: bool = false        # Can pay 1 mana to shuffle and draw
+var has_scout: bool = false        # Look at top card of deck
+
+## Special Keywords
+var has_persistent: bool = false   # Returns with 1 HP when destroyed
+var has_huddle: bool = false       # Can be played in occupied space
+var has_silence: bool = false      # Has been silenced (keywords removed)
+
+## Tracking Variables
+var drawn_this_turn: bool = false  # For Fated keyword
+var attacks_this_turn: int = 0     # For Aggressive keyword
+var echo_card: bool = false        # Is this an echo copy?
+var weakened_amount: int = 0       # Temporary attack reduction
+
+## Huddle Support
+var huddled_minion: Node = null    # Reference to huddled minion
+
+## Minion Tags
+var role_tag: MinionTags.Role = MinionTags.Role.NONE
+var biology_tag: MinionTags.Biology = MinionTags.Biology.NONE
 
 ## UI References
 @onready var frame: Panel = $Frame
@@ -163,25 +198,321 @@ func _parse_keywords() -> void:
 	if not card_data:
 		return
 	
-	# Parse using YOUR custom keyword names
+	# Reset all keyword flags
+	_reset_keyword_flags()
+	
+	# Combat Keywords
 	has_charge = card_data.has_keyword("Charge")
 	has_rush = card_data.has_keyword("Rush")
-	has_taunt = card_data.has_keyword("Taunt")
-	has_shielded = card_data.has_keyword("Shielded")
 	has_aggressive = card_data.has_keyword("Aggressive")
-	has_hidden = card_data.has_keyword("Hidden")
-	has_drain = card_data.has_keyword("Drain")
-	has_lethal = card_data.has_keyword("Lethal")
-	has_persistent = card_data.has_keyword("Persistent")
+	has_taunt = card_data.has_keyword("Taunt")
+	has_pierce = card_data.has_keyword("Pierce")
 	has_snipe = card_data.has_keyword("Snipe")
 	has_bully = card_data.has_keyword("Bully")
-	has_huddle = card_data.has_keyword("Huddle")
-	has_ritual = card_data.has_keyword("Ritual")
+	has_lethal = card_data.has_keyword("Lethal")
+	
+	# Defensive Keywords
+	has_shielded = card_data.has_keyword("Shielded")
+	has_ward = card_data.has_keyword("Ward")
+	has_hidden = card_data.has_keyword("Hidden")
+	has_illusion = card_data.has_keyword("Illusion")
+	resist_value = _parse_keyword_value("Resist")
+	
+	# Trigger Keywords
+	has_deploy = card_data.has_keyword("Deploy") or card_data.has_keyword("On-play")
+	has_last_words = card_data.has_keyword("Last words") or card_data.has_keyword("On-death")
+	has_bounty = card_data.has_keyword("Bounty")
+	has_empowered = card_data.has_keyword("Empowered")
 	has_fated = card_data.has_keyword("Fated")
 	
+	# Resource Keywords
+	has_drain = card_data.has_keyword("Drain")
+	has_affinity = card_data.has_keyword_base("Affinity")
+	has_sacrifice = card_data.has_keyword_base("Sacrifice")
+	sacrifice_cost = _parse_keyword_value("Sacrifice")
+	has_ritual = card_data.has_keyword("Ritual")
+	ritual_cost = _parse_keyword_value("Ritual") if _parse_keyword_value("Ritual") > 0 else 1
+	has_conduit = card_data.has_keyword_base("Conduit")
+	conduit_value = _parse_keyword_value("Conduit")
+	
+	# Utility Keywords
+	has_echo = card_data.has_keyword("Echo")
+	has_draft = card_data.has_keyword("Draft")
+	has_cycle = card_data.has_keyword("Cycle")
+	has_scout = card_data.has_keyword("Scout")
+	
+	# Special Keywords
+	has_persistent = card_data.has_keyword("Persistent")
+	has_huddle = card_data.has_keyword("Huddle")
+	
+	# Charge removes summoning sickness
 	if has_charge:
 		just_played = false
 
+func _reset_keyword_flags() -> void:
+	has_charge = false
+	has_rush = false
+	has_aggressive = false
+	has_taunt = false
+	has_pierce = false
+	has_snipe = false
+	has_bully = false
+	has_lethal = false
+	has_stun = false
+	has_shielded = false
+	has_ward = false
+	has_hidden = false
+	has_illusion = false
+	resist_value = 0
+	has_deploy = false
+	has_last_words = false
+	has_bounty = false
+	has_empowered = false
+	has_fated = false
+	has_drain = false
+	has_affinity = false
+	has_sacrifice = false
+	sacrifice_cost = 0
+	has_ritual = false
+	ritual_cost = 0
+	has_conduit = false
+	conduit_value = 0
+	has_echo = false
+	has_draft = false
+	has_cycle = false
+	has_scout = false
+	has_persistent = false
+	has_huddle = false
+	has_silence = false
+	weakened_amount = 0
+
+
+func _parse_keyword_value(keyword: String) -> int:
+	if card_data and card_data.has_method("get_keyword_value"):
+		return card_data.get_keyword_value(keyword)
+	
+	# Fallback parsing
+	for kw in card_data.keywords:
+		var kw_lower := kw.to_lower()
+		var base := keyword.to_lower()
+		if kw_lower.begins_with(base):
+			var remainder := kw_lower.replace(base, "").strip_edges()
+			remainder = remainder.trim_prefix("(").trim_suffix(")")
+			if remainder.is_valid_int():
+				return remainder.to_int()
+	return 0
+
+## Apply Silence - removes all keywords and text
+func apply_silence() -> void:
+	has_silence = true
+	
+	# Remove all keyword flags
+	has_charge = false
+	has_rush = false
+	has_aggressive = false
+	has_taunt = false
+	has_pierce = false
+	has_snipe = false
+	has_bully = false
+	has_lethal = false
+	has_shielded = false
+	has_ward = false
+	has_hidden = false
+	has_illusion = false
+	resist_value = 0
+	has_deploy = false
+	has_last_words = false
+	has_bounty = false
+	has_empowered = false
+	has_fated = false
+	has_drain = false
+	has_affinity = false
+	has_sacrifice = false
+	has_ritual = false
+	has_conduit = false
+	conduit_value = 0
+	has_echo = false
+	has_draft = false
+	has_cycle = false
+	has_scout = false
+	has_persistent = false
+	has_huddle = false
+	
+	# Clear huddled minion reference
+	if huddled_minion:
+		huddled_minion = null
+	
+	_update_visuals()
+	print("[Minion] %s has been Silenced!" % card_data.card_name)
+
+
+## Apply Stun - prevents attacking this turn
+func apply_stun() -> void:
+	has_stun = true
+	_update_visuals()
+	print("[Minion] %s has been Stunned!" % card_data.card_name)
+
+
+## Apply Weakened - reduces attack temporarily
+func apply_weakened(amount: int) -> void:
+	weakened_amount += amount
+	_update_visuals()
+	print("[Minion] %s is Weakened by %d!" % [card_data.card_name, amount])
+
+
+## Clear Weakened at end of turn
+func clear_weakened() -> void:
+	weakened_amount = 0
+	_update_visuals()
+
+
+## Clear Stun at end of turn
+func clear_stun() -> void:
+	has_stun = false
+	_update_visuals()
+
+
+## Get effective attack (accounting for Weakened)
+func get_effective_attack() -> int:
+	var base := current_attack
+	
+	# Apply Weakened reduction
+	base -= weakened_amount
+	
+	# Apply modifiers
+	if ModifierManager:
+		base = ModifierManager.apply_attack_modifiers(base, self)
+	
+	return maxi(0, base)  # Attack can't go below 0
+
+
+## Get effective health
+func get_effective_health() -> int:
+	var base := current_health
+	
+	if ModifierManager:
+		base = ModifierManager.apply_health_modifiers(base, self)
+	
+	return base
+
+
+## Check if minion can attack
+func can_attack() -> bool:
+	# Stunned minions can't attack
+	if has_stun:
+		return false
+	
+	# Check attack count based on Aggressive
+	var max_attacks := 2 if has_aggressive else 1
+	if attacks_this_turn >= max_attacks:
+		return false
+	
+	# Just played check (unless has Charge)
+	if just_played and not has_charge:
+		# Rush allows attacking minions but not heroes
+		if has_rush:
+			return true  # Can attack, but target validation handles hero restriction
+		return false
+	
+	return true
+
+
+## Handle taking damage (with Resist and Shielded)
+func take_damage(amount: int) -> void:
+	var actual_damage := amount
+	
+	# Illusion - dies on any interaction
+	if has_illusion:
+		print("[Minion] %s Illusion triggered - dies on interaction!" % card_data.card_name)
+		die()
+		return
+	
+	# Shielded blocks damage
+	if has_shielded and actual_damage > 0:
+		has_shielded = false
+		print("[Minion] %s Shielded blocked %d damage!" % [card_data.card_name, actual_damage])
+		_play_damage_effect(0)  # Show shield break
+		_update_visuals()
+		return
+	
+	# Apply Resist reduction
+	if resist_value > 0:
+		actual_damage = maxi(0, actual_damage - resist_value)
+		print("[Minion] %s Resist reduced damage by %d!" % [card_data.card_name, resist_value])
+	
+	# Apply damage
+	current_health -= actual_damage
+	
+	if actual_damage > 0:
+		_play_damage_effect(actual_damage)
+	
+	_update_visuals()
+	
+	if current_health <= 0:
+		die()
+
+
+## Handle Pierce damage to hero
+func apply_pierce_damage(target_minion: Node, damage_dealt: int) -> void:
+	if not has_pierce:
+		return
+	
+	var overkill := damage_dealt - target_minion.current_health
+	if overkill > 0 and target_minion.owner_id != owner_id:
+		var enemy_id := target_minion.owner_id
+		print("[Minion] %s Pierce deals %d to enemy hero!" % [card_data.card_name, overkill])
+		GameManager.damage_hero(enemy_id, overkill)
+
+
+## Handle death (with Persistent, Bounty, Last Words)
+func die() -> void:
+	# Persistent - revive with 1 HP
+	if has_persistent:
+		has_persistent = false
+		current_health = 1
+		print("[Minion] %s Persistent triggered - revived with 1 HP!" % card_data.card_name)
+		_update_visuals()
+		return
+	
+	# Bounty - reward enemy player
+	if has_bounty:
+		var enemy_id := 1 - owner_id
+		_trigger_bounty(enemy_id)
+	
+	# Last Words / On-death effect
+	if has_last_words and not has_silence:
+		_trigger_last_words()
+	
+	# Huddle - transfer to huddled minion
+	if huddled_minion and is_instance_valid(huddled_minion):
+		_transfer_to_huddled()
+	
+	# Signal death
+	emit_signal("minion_died", self)
+	
+	# Remove from board
+	GameManager.remove_minion_from_board(owner_id, self)
+	queue_free()
+
+
+func _trigger_bounty(enemy_id: int) -> void:
+	# Default bounty: draw a card
+	print("[Minion] %s Bounty triggered - Player %d draws a card!" % [card_data.card_name, enemy_id])
+	GameManager._draw_card(enemy_id)
+
+
+func _trigger_last_words() -> void:
+	# Trigger deathrattle effect through effect system
+	print("[Minion] %s Last Words triggered!" % card_data.card_name)
+	# Effect handling would be done by CardEffectBase subclass
+
+
+func _transfer_to_huddled() -> void:
+	print("[Minion] %s transfers position to huddled minion!" % card_data.card_name)
+	huddled_minion.lane_index = lane_index
+	huddled_minion.is_front_row = is_front_row
+	# Reveal the huddled minion
+	GameManager.register_minion_on_board(owner_id, huddled_minion, lane_index, 0 if is_front_row else 1)
 
 ## =============================================================================
 ## STAT GETTERS (WITH MODIFIER SUPPORT)
@@ -426,13 +757,21 @@ func refresh_for_turn() -> void:
 	has_attacked = false
 	has_moved_this_turn = false
 	attacks_this_turn = 0
-	drawn_this_turn = false  # Reset Fated tracking each turn
-	_update_can_attack_visual()
+	just_played = false
+	attacks_this_turn = 0
+	drawn_this_turn = false
+	clear_stun()
+	clear_weakened()
+	_update_visuals()
 
 
 func _on_turn_started(turn_player_id: int) -> void:
 	if turn_player_id == owner_id:
 		just_played = false
+			# Echo cards disappear at end of turn
+	if echo_card:
+		print("[Minion] Echo copy %s disappears!" % card_data.card_name)
+		# This would be handled in hand, not on board
 		if sleeping_icon:
 			sleeping_icon.visible = false
 		_update_can_attack_visual()

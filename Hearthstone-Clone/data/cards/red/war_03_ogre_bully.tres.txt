@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/card_data.gd" id="1_card"]
+
+[resource]
+script = ExtResource("1_card")
+name = "Ogre Bully"
+cost = 3
+type = "Unit"
+attack = 3
+health = 4
+tags = Array[String](["Humanoid", "Raider"])
+rarity = "Common"
+text = "Bully: Gain +2 Attack when attacking."

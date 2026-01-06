@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/card_data.gd" id="1_card"]
+
+[resource]
+script = ExtResource("1_card")
+name = "Archive Drone"
+cost = 2
+type = "Unit"
+attack = 1
+health = 3
+tags = Array[String](["Construct", "Savant"])
+rarity = "Common"
+text = "Conduit (1)."

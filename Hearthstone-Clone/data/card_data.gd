@@ -19,13 +19,16 @@ enum Rarity {
 
 ## Minion Tags - Bitflag constants for minion types
 class minion_tags:
-	const NONE: int = 0
+	const HUMANOID: int = 0
 	const BEAST: int = 1 << 0     # 1
-	const MECH: int = 1 << 1      # 2
-	const IDOL: int = 1 << 2      # 4
-	const UNDEAD: int = 1 << 3    # 8
-	const DRAGON: int = 1 << 4    # 16
-	const ALL: int = BEAST | MECH | IDOL | UNDEAD | DRAGON
+	const CONSTRUCT: int = 1 << 1      # 2
+	const ELEMENTAL: int = 1 << 2      # 4
+	const FLORA: int = 1 << 3    # 8
+	const HORROR: int = 1 << 4    # 16
+	const UNDEAD: int = 1 << 5
+	const VERMIN: int = 1 << 6
+	const CELESTIAL: int = 1 << 7
+	const ALL: int = HUMANOID | BEAST | CONSTRUCT | ELEMENTAL | FLORA | HORROR | UNDEAD | VERMIN | CELESTIAL
 
 ## Unique identifier for this card
 @export var id: String = ""
@@ -75,8 +78,8 @@ class minion_tags:
 ## "Fated"       - Bonus effect if played same turn as drawn
 @export var keywords: Array[String] = []
 
-## Minion type tags (Beast, Mech, Idol, Undead, Dragon) - stored as bitflags
-@export var min_tags: int = MinionTags.NONE
+@export var role_tag: MinionTags.Role = MinionTags.Role.NONE
+@export var biology_tag: MinionTags.Biology = MinionTags.Biology.NONE
 
 ## Runtime-only fields (not saved to resource)
 var _runtime_id: String = ""
@@ -134,42 +137,134 @@ func remove_keyword(keyword: String) -> void:
 ## Get keyword tooltip description
 func get_keyword_description(keyword: String) -> String:
 	match keyword.to_lower():
+		# === COMBAT KEYWORDS ===
 		"charge":
-			return "Can attack when summoned."
-		"taunt":
-			return "Opposing minions cannot select another minion who shares a row with this minion as a target."
-		"shielded":
-			return "The next instance of damage is reduced to 0."
-		"aggressive":
-			return "This minion can attack twice in 1 turn."
-		"drain":
-			return "Damage dealt is restored to the player who controls this card."
-		"lethal":
-			return "Minions damaged by this card are destroyed."
-		"on-play":
-			return "When this minion is summoned, an effect takes place."
-		"on-death":
-			return "When this minion is destroyed, an effect takes place."
+			return "Can attack immediately when summoned."
 		"rush":
 			return "Can attack minions the turn it is summoned, but cannot attack heroes."
-		"hidden":
-			return "This card cannot be targeted by opponent's cards."
-		"persistent":
-			return "When destroyed, returns to life with 1 Health (once)."
+		"aggressive":
+			return "This minion can attack twice per turn."
+		"taunt":
+			return "Opposing minions cannot select another minion who shares a row with this minion as a target."
+		"pierce":
+			return "When this minion attacks, any damage dealt above the target's current health is dealt to the controlling player."
 		"snipe":
-			return "Can attack back row minions regardless of front row. Can attack from back row."
-		"draft":
-			return "Choose one of three randomly selected cards."
+			return "Can attack from the back row and can target back row minions regardless of front row."
 		"bully":
 			return "Bonus effect triggers when attacking a target with less Attack than this minion."
-		"huddle":
-			return "Can be played in an occupied space. Buffs the front minion and takes over when it dies."
-		"ritual":
-			return "Optionally sacrifice friendly minions to trigger a bonus effect."
+		"lethal":
+			return "Any damage dealt by this minion destroys the target minion."
+		"stun":
+			return "Target minion is unable to attack this turn."
+		"weakened":
+			return "Reduce the attack of a minion by X amount until the end of the turn."
+		
+		# === DEFENSIVE KEYWORDS ===
+		"shielded":
+			return "The next instance of damage is reduced to 0 and Shielded is removed."
+		"ward":
+			return "This minion cannot be targeted by action cards."
+		"hidden":
+			return "Cannot be targeted by opponent's cards. Removed when this minion attacks."
+		"resist":
+			return "This minion takes X less damage whenever it is damaged."
+		"illusion":
+			return "When anything interacts with this minion (damaged, targeted, attacked), this minion dies."
+		
+		# === TRIGGER KEYWORDS ===
+		"deploy", "on-play":
+			return "When this minion is summoned, an effect takes place."
+		"last words", "on-death":
+			return "When this minion is destroyed, an effect takes place."
+		"bounty":
+			return "When this minion is sent to the graveyard, the opponent receives a reward."
+		"empowered":
+			return "This card gains an additional benefit if played immediately after an action card."
 		"fated":
 			return "Bonus effect triggers if played the same turn it was drawn."
+		
+		# === RESOURCE KEYWORDS ===
+		"drain":
+			return "Damage dealt by this minion is restored to the controlling player's health."
+		"affinity":
+			return "Costs 1 less mana for every minion with the specified tag on your field."
+		"sacrifice":
+			return "Send X number of friendly minions to the graveyard to activate this effect."
+		"ritual":
+			return "Optionally sacrifice friendly minions to trigger a bonus effect."
+		"conduit":
+			return "Friendly action cards deal X more damage while this minion is on the field."
+		
+		# === UTILITY KEYWORDS ===
+		"echo":
+			return "After this card is played, a copy is created in your hand. It leaves your hand at the end of your turn."
+		"draft":
+			return "Choose one of three randomly selected cards from your deck."
+		"cycle":
+			return "Spend 1 mana to shuffle this card back into your deck and draw 1."
+		"scout":
+			return "Look at the top card of your deck. You may leave it or move it to the bottom."
+		"silence":
+			return "Remove all text and keywords from the target minion."
+		
+		# === SPECIAL KEYWORDS ===
+		"persistent":
+			return "Upon death, this minion revives with 1 health and loses Persistent."
+		"huddle":
+			return "Can be played in an occupied space. Buffs the front minion and takes over when it dies."
 		_:
 			return ""
+
+
+## Parse keyword value (for keywords like "Resist (2)" or "Conduit (3)")
+func get_keyword_value(keyword: String) -> int:
+	# Check if keyword is in format "Keyword (X)" or "Keyword X"
+	for kw in keywords:
+		var kw_lower := kw.to_lower()
+		var base_keyword := keyword.to_lower()
+		
+		# Match "resist (2)", "resist 2", "resist(2)"
+		if kw_lower.begins_with(base_keyword):
+			var remainder := kw_lower.replace(base_keyword, "").strip_edges()
+			remainder = remainder.trim_prefix("(").trim_suffix(")")
+			if remainder.is_valid_int():
+				return remainder.to_int()
+	
+	# Default values for specific keywords
+	match keyword.to_lower():
+		"resist":
+			return 1
+		"conduit":
+			return 1
+		"sacrifice":
+			return 1
+		"weakened":
+			return 1
+		"affinity":
+			return 1
+	
+	return 0
+
+
+## Get all keywords that have this base (e.g., "resist" returns ["resist (2)"])
+func get_keywords_with_base(base: String) -> Array[String]:
+	var result: Array[String] = []
+	var base_lower := base.to_lower()
+	
+	for kw in keywords:
+		if kw.to_lower().begins_with(base_lower):
+			result.append(kw)
+	
+	return result
+
+
+## Check if card has a keyword (supports parameterized keywords)
+func has_keyword_base(keyword: String) -> bool:
+	var kw_lower := keyword.to_lower()
+	for k in keywords:
+		if k.to_lower().begins_with(kw_lower):
+			return true
+	return false
 
 
 ## Get ritual sacrifice cost (for cards with Ritual keyword)
@@ -186,7 +281,7 @@ func get_ritual_cost() -> int:
 
 ## Check if this card has a specific minion tag
 func has_minion_tag(tag: int) -> bool:
-	return (min_tags & tag) != 0
+	return (min_tags & tag) = 0
 
 
 ## Add a minion tag
