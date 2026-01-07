@@ -66,18 +66,26 @@ func _run():
 	# 2. Iterate through DB and create resources
 	for data in card_db:
 		var new_card = CardData.new()
-		
+
 		new_card.card_name = data["name"]
 		new_card.cost = data["cost"]
 		new_card.card_type = data["type"]
 		new_card.attack = data["atk"]
 		new_card.health = data["hp"]
-		
-		# Typed Array conversion
-		new_card.minion_tags.assign(data["tags"])
-		
+
+		# Parse tags into role and biology
+		for tag_name in data["tags"]:
+			var role = MinionTags.get_role_from_name(tag_name)
+			if role != MinionTags.Role.NONE:
+				new_card.role_tag = role
+				continue
+
+			var bio = MinionTags.get_biology_from_name(tag_name)
+			if bio != MinionTags.Biology.HUMANOID or tag_name.to_lower() == "humanoid":
+				new_card.biology_tag = bio
+
 		new_card.rarity = data["rarity"]
-		new_card.text = data["text"]
+		new_card.description = data["text"]
 		
 		# 3. Save to disk
 		var file_path = "res://data/cards/" + data["id"] + ".tres"

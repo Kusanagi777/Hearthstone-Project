@@ -82,6 +82,12 @@ var _deferred_draws: Array[Dictionary] = []
 ## Track controller readiness
 var _controllers_ready: bool = false
 
+## Conduit bonus tracking
+var conduit_bonus: Array[int] = [0, 0]
+
+## Track last card type for Empowered
+var last_card_was_action: Array[bool] = [false, false]
+
 
 ## =============================================================================
 ## INITIALIZATION
@@ -122,6 +128,8 @@ func reset_game() -> void:
 	turn_number = 0
 	active_player = PLAYER_ONE
 	current_phase = GamePhase.IDLE
+	conduit_bonus = [0, 0]
+	last_card_was_action = [false, false]
 	_initialize_player_data()
 	
 	# Clear modifiers on game reset
@@ -270,11 +278,12 @@ func _draw_card(player_id: int) -> void:
 		return
 	
 	var drawn_card: CardData = deck.pop_back()
-	
-	# Track that this card was drawn this turn (for Fated)
-	p["cards_drawn_this_turn"].append(drawn_card.get_runtime_id())
-	
 	hand.append(drawn_card)
+	
+	# Track for Fated keyword
+	p["cards_drawn_this_turn"].append(drawn_card.id)
+	
+	print("[GameManager] Player %d drew: %s" % [player_id, drawn_card.card_name])
 	
 	# MODIFIER HOOK: Card drawn
 	if ModifierManager:
@@ -284,21 +293,11 @@ func _draw_card(player_id: int) -> void:
 		card_drawn.emit(player_id, drawn_card)
 	else:
 		_deferred_draws.append({"player_id": player_id, "card": drawn_card})
-	
-	print("[GameManager] Player %d drew: %s" % [player_id, drawn_card.card_name])
 
 
 ## =============================================================================
 ## MANA MANAGEMENT
 ## =============================================================================
-
-func get_current_mana(player_id: int) -> int:
-	return players[player_id]["current_mana"]
-
-
-func get_max_mana(player_id: int) -> int:
-	return players[player_id]["max_mana"]
-
 
 func spend_mana(player_id: int, amount: int) -> bool:
 	var p := players[player_id]
@@ -309,65 +308,18 @@ func spend_mana(player_id: int, amount: int) -> bool:
 	return false
 
 
+func get_current_mana(player_id: int) -> int:
+	return players[player_id]["current_mana"]
+
+
+func get_max_mana(player_id: int) -> int:
+	return players[player_id]["max_mana"]
+
+
 func add_mana(player_id: int, amount: int) -> void:
 	var p := players[player_id]
 	p["current_mana"] = mini(p["current_mana"] + amount, p["max_mana"])
 	mana_changed.emit(player_id, p["current_mana"], p["max_mana"])
-
-
-## Get the effective cost of a card (with modifiers applied)
-func get_card_cost(card: CardData, player_id: int) -> int:
-	var base_cost := card.cost
-	if ModifierManager:
-		return ModifierManager.apply_card_cost_modifiers(card, base_cost, player_id)
-	return base_cost
-
-
-## =============================================================================
-## CLASS RESOURCE MANAGEMENT
-## =============================================================================
-
-func get_class_resource(player_id: int) -> int:
-	return players[player_id]["class_resource"]
-
-
-func get_max_class_resource(player_id: int) -> int:
-	return players[player_id]["max_class_resource"]
-
-
-func get_class_resource_type(player_id: int) -> String:
-	return players[player_id]["class_resource_type"]
-
-
-func add_class_resource(player_id: int, amount: int) -> void:
-	var p := players[player_id]
-	var resource_type: String = p["class_resource_type"]
-	
-	# MODIFIER HOOK: Modify class resource gain
-	var modified_amount := amount
-	if ModifierManager and not resource_type.is_empty():
-		modified_amount = ModifierManager.apply_class_resource_gain_modifiers(resource_type, amount, player_id)
-	
-	p["class_resource"] = mini(p["class_resource"] + modified_amount, p["max_class_resource"])
-
-
-func spend_class_resource(player_id: int, amount: int) -> bool:
-	var p := players[player_id]
-	var resource_type: String = p["class_resource_type"]
-	
-	# MODIFIER HOOK: Modify class resource cost
-	var modified_amount := amount
-	if ModifierManager and not resource_type.is_empty():
-		modified_amount = ModifierManager.apply_class_resource_cost_modifiers(resource_type, amount, player_id)
-	
-	if p["class_resource"] >= modified_amount:
-		p["class_resource"] -= modified_amount
-		return true
-	return false
-
-
-func set_class_resource_type(player_id: int, resource_type: String) -> void:
-	players[player_id]["class_resource_type"] = resource_type
 
 
 ## =============================================================================
@@ -378,14 +330,13 @@ func can_play_card(player_id: int, card: CardData) -> bool:
 	if not is_player_turn(player_id):
 		return false
 	
-	# Check mana cost (with modifiers)
-	var effective_cost := get_card_cost(card, player_id)
-	if players[player_id]["current_mana"] < effective_cost:
+	var effective_cost := get_effective_card_cost(card, player_id)
+	if get_current_mana(player_id) < effective_cost:
 		return false
 	
-	# MODIFIER HOOK: Check if modifiers prevent playing this card
-	if ModifierManager:
-		if not ModifierManager.can_play_card(card, player_id):
+	# Check board space for minions
+	if card.is_minion():
+		if players[player_id]["board"].size() >= MAX_BOARD_SIZE:
 			return false
 	
 	return true
@@ -395,208 +346,69 @@ func play_card(player_id: int, card: CardData, target: Variant = null) -> bool:
 	if not can_play_card(player_id, card):
 		return false
 	
-	var p := players[player_id]
-	
-	# Get modified cost
-	var effective_cost := get_card_cost(card, player_id)
-	
-	# Spend mana
-	if not spend_mana(player_id, effective_cost):
-		return false
+	var effective_cost := get_effective_card_cost(card, player_id)
+	spend_mana(player_id, effective_cost)
 	
 	# Remove from hand
-	var hand: Array = p["hand"]
-	var index := hand.find(card)
-	if index != -1:
-		hand.remove_at(index)
+	var hand: Array = players[player_id]["hand"]
+	hand.erase(card)
 	
-	# MODIFIER HOOK: Card played (before effects)
+	# Update Empowered tracking
+	update_last_card_type(card, player_id)
+	
+	# MODIFIER HOOK: Card played
 	if ModifierManager:
-		ModifierManager.trigger_card_played(card, player_id, target)
-	
-	# Check Fated keyword
-	if card.has_keyword("Fated"):
-		if card.get_runtime_id() in p["cards_drawn_this_turn"]:
-			print("[GameManager] Fated triggered for %s!" % card.card_name)
-			# Fated effect will be handled by minion/effect system
-	
+		ModifierManager.trigger_card_played(card, player_id, target)	
 	card_played.emit(player_id, card)
-	print("[GameManager] Player %d played %s (cost: %d)" % [player_id, card.card_name, effective_cost])
 	
-	# MODIFIER HOOK: Card resolved (after effects would be processed)
-	# Note: For async effects, you'd call this after effects complete
+	return true
+
+
+## =============================================================================
+## BOARD MANAGEMENT
+## =============================================================================
+
+func add_minion_to_board(player_id: int, minion: Node) -> bool:
+	var board: Array = players[player_id]["board"]
+	if board.size() >= MAX_BOARD_SIZE:
+		return false
+	
+	board.append(minion)
+	
+	# MODIFIER HOOK: Minion summoned
 	if ModifierManager:
-		ModifierManager.trigger_card_resolved(card, player_id)
+		var lane: int = minion.lane_index if minion.has_method("get") else 0
+		var row: int = 0 if minion.is_front_row else 1 if "is_front_row" in minion else 0
+		ModifierManager.trigger_minion_summoned(minion, player_id, lane, row)	
+	# Check tag synergies
+	check_role_synergies(player_id, minion)
+	check_biology_synergies(player_id, minion)
 	
-	return true
-
-## =============================================================================
-## KEYWORD TRACKING STATE
-## =============================================================================
-
-## Track if last card played was an action (for Empowered)
-var last_card_was_action: Array[bool] = [false, false]
-
-## Track conduit bonuses per player
-var conduit_bonus: Array[int] = [0, 0]
-
-
-## =============================================================================
-## ECHO KEYWORD
-## =============================================================================
-
-## Create an Echo copy of a card
-func create_echo_copy(original_card: CardData, player_id: int) -> void:
-	var echo_copy := original_card.duplicate_for_play()
+	# Recalculate conduit
+	recalculate_conduit(player_id)
 	
-	# Mark as echo copy (it will disappear at end of turn)
-	echo_copy.set_meta("echo_copy", true)
-	
-	# Add to hand if space
-	var hand: Array = players[player_id]["hand"]
-	if hand.size() < MAX_HAND_SIZE:
-		hand.append(echo_copy)
-		card_drawn.emit(player_id, echo_copy)
-		print("[GameManager] Echo created copy of %s for player %d" % [original_card.card_name, player_id])
-	else:
-		print("[GameManager] Echo copy of %s burned - hand full!" % original_card.card_name)
-
-
-## Remove Echo copies at end of turn
-func remove_echo_copies(player_id: int) -> void:
-	var hand: Array = players[player_id]["hand"]
-	var to_remove: Array[CardData] = []
-	
-	for card in hand:
-		if card.has_meta("echo_copy") and card.get_meta("echo_copy"):
-			to_remove.append(card)
-	
-	for card in to_remove:
-		hand.erase(card)
-		print("[GameManager] Echo copy %s removed from hand" % card.card_name)
-
-
-## =============================================================================
-## CYCLE KEYWORD
-## =============================================================================
-
-## Cycle a card: shuffle into deck and draw 1
-func cycle_card(player_id: int, card: CardData) -> bool:
-	# Costs 1 mana
-	if not spend_mana(player_id, 1):
-		print("[GameManager] Cannot cycle - not enough mana!")
-		return false
-	
-	var hand: Array = players[player_id]["hand"]
-	var deck: Array = players[player_id]["deck"]
-	
-	# Remove from hand
-	var index := hand.find(card)
-	if index == -1:
-		return false
-	hand.remove_at(index)
-	
-	# Shuffle into deck
-	deck.append(card)
-	deck.shuffle()
-	
-	# Draw a card
-	_draw_card(player_id)
-	
-	print("[GameManager] Player %d cycled %s" % [player_id, card.card_name])
+	minion_summoned.emit(player_id, minion)
 	return true
 
 
-## =============================================================================
-## SCOUT KEYWORD
-## =============================================================================
-
-## Scout: Look at top card, optionally move to bottom
-signal scout_triggered(player_id: int, top_card: CardData)
-
-func trigger_scout(player_id: int) -> CardData:
-	var deck: Array = players[player_id]["deck"]
+func remove_minion_from_board(player_id: int, minion: Node) -> void:
+	var board: Array = players[player_id]["board"]
+	board.erase(minion)
 	
-	if deck.is_empty():
-		print("[GameManager] Cannot scout - deck is empty!")
-		return null
-	
-	var top_card: CardData = deck[0]
-	print("[GameManager] Scout reveals: %s" % top_card.card_name)
-	
-	scout_triggered.emit(player_id, top_card)
-	return top_card
+	# Recalculate conduit
+	recalculate_conduit(player_id)
 
 
-## Move top card to bottom (called after Scout decision)
-func scout_move_to_bottom(player_id: int) -> void:
-	var deck: Array = players[player_id]["deck"]
-	
-	if deck.is_empty():
-		return
-	
-	var top_card: CardData = deck[0]
-	deck.remove_at(0)
-	deck.append(top_card)
-	
-	print("[GameManager] Scout moved %s to bottom of deck" % top_card.card_name)
+func get_board(player_id: int) -> Array:
+	return players[player_id]["board"]
+
+
+func get_board_size(player_id: int) -> int:
+	return players[player_id]["board"].size()
 
 
 ## =============================================================================
-## DRAFT KEYWORD
-## =============================================================================
-
-signal draft_triggered(player_id: int, choices: Array[CardData])
-
-func trigger_draft(player_id: int) -> Array[CardData]:
-	var deck: Array = players[player_id]["deck"]
-	var choices: Array[CardData] = []
-	
-	if deck.size() < 3:
-		# Not enough cards, return what's available
-		for card in deck:
-			choices.append(card)
-		return choices
-	
-	# Randomly select 3 unique cards
-	var available := deck.duplicate()
-	for i in range(3):
-		var idx := randi() % available.size()
-		choices.append(available[idx])
-		available.remove_at(idx)
-	
-	print("[GameManager] Draft offers: %s, %s, %s" % [choices[0].card_name, choices[1].card_name, choices[2].card_name])
-	draft_triggered.emit(player_id, choices)
-	return choices
-
-
-## Select a draft choice
-func select_draft_choice(player_id: int, chosen_card: CardData, all_choices: Array[CardData]) -> void:
-	var deck: Array = players[player_id]["deck"]
-	var hand: Array = players[player_id]["hand"]
-	
-	# Remove chosen card from deck
-	var idx := deck.find(chosen_card)
-	if idx != -1:
-		deck.remove_at(idx)
-	
-	# Add to hand
-	if hand.size() < MAX_HAND_SIZE:
-		hand.append(chosen_card)
-		card_drawn.emit(player_id, chosen_card)
-	
-	# Shuffle unchosen cards back
-	for card in all_choices:
-		if card != chosen_card:
-			if not deck.has(card):
-				deck.append(card)
-	deck.shuffle()
-	
-	print("[GameManager] Player %d drafted %s" % [player_id, chosen_card.card_name])
-
-
-## =============================================================================
-## AFFINITY KEYWORD
+## AFFINITY KEYWORD - Updated for Dual Tags
 ## =============================================================================
 
 ## Calculate affinity cost reduction
@@ -605,47 +417,71 @@ func get_affinity_reduction(card: CardData, player_id: int) -> int:
 		return 0
 	
 	# Parse which tag provides affinity
-	var affinity_tag := _parse_affinity_tag(card)
-	if affinity_tag == MinionTags.HUMANOID:
+	var affinity_info := _parse_affinity_tag(card)
+	if affinity_info.is_empty():
 		return 0
 	
 	# Count matching minions on board
 	var board: Array = players[player_id]["board"]
 	var count := 0
 	
-	for minion in board:
-		if is_instance_valid(minion) and minion.card_data:
-			if minion.card_data.has_minion_tag(affinity_tag):
-				count += 1
+	var tag_type: String = affinity_info.get("type", "")
+	var tag_value: String = affinity_info.get("value", "")
+	
+	if tag_type == "role":
+		var role := MinionTags.get_role_from_name(tag_value)
+		if role != MinionTags.Role.NONE:
+			count = MinionTags.count_role_on_board(board, role)
+	elif tag_type == "biology":
+		var bio := MinionTags.get_biology_from_name(tag_value)
+		# HUMANOID is the default, so we count it too
+		for minion in board:
+			if is_instance_valid(minion) and minion.card_data:
+				if minion.card_data.biology_tag == bio:
+					count += 1
 	
 	return count
 
 
-func _parse_affinity_tag(card: CardData) -> int:
-	# Look for "Affinity: Beast" or "Affinity (Beast)" in keywords or description
+## Parse affinity tag from card keywords - returns Dictionary with "type" and "value"
+func _parse_affinity_tag(card: CardData) -> Dictionary:
 	for kw in card.keywords:
 		var kw_lower := kw.to_lower()
 		if kw_lower.begins_with("affinity"):
+			# Biology tags
 			if "beast" in kw_lower:
-				return MinionTags.BEAST
+				return {"type": "biology", "value": "beast"}
 			elif "construct" in kw_lower:
-				return MinionTags.CONSTRUCT
-			elif "idol" in kw_lower:
-				return MinionTags.IDOL
+				return {"type": "biology", "value": "construct"}
+			elif "elemental" in kw_lower:
+				return {"type": "biology", "value": "elemental"}
+			elif "flora" in kw_lower:
+				return {"type": "biology", "value": "flora"}
+			elif "horror" in kw_lower:
+				return {"type": "biology", "value": "horror"}
 			elif "undead" in kw_lower:
-				return MinionTags.UNDEAD
-			elif "dragon" in kw_lower:
-				return MinionTags.DRAGON
-			elif "mech" in kw_lower:
-				return MinionTags.MECH
-			elif "idol" in kw_lower:
-				return MinionTags.IDOL
-			elif "undead" in kw_lower:
-				return MinionTags.UNDEAD
-			elif "dragon" in kw_lower:
-				return MinionTags.DRAGON
+				return {"type": "biology", "value": "undead"}
+			elif "vermin" in kw_lower:
+				return {"type": "biology", "value": "vermin"}
+			elif "celestial" in kw_lower:
+				return {"type": "biology", "value": "celestial"}
+			elif "humanoid" in kw_lower:
+				return {"type": "biology", "value": "humanoid"}
+			# Role tags
+			elif "warrior" in kw_lower:
+				return {"type": "role", "value": "warrior"}
+			elif "raider" in kw_lower:
+				return {"type": "role", "value": "raider"}
+			elif "savant" in kw_lower:
+				return {"type": "role", "value": "savant"}
+			elif "commander" in kw_lower:
+				return {"type": "role", "value": "commander"}
+			elif "zealot" in kw_lower:
+				return {"type": "role", "value": "zealot"}
+			elif "titan" in kw_lower:
+				return {"type": "role", "value": "titan"}
 	
-	return MinionTags.NONE
+	return {}
 
 
 ## =============================================================================
@@ -711,7 +547,7 @@ signal bounty_triggered(source_player: int, receiving_player: int, card_name: St
 
 ## Trigger bounty reward (called when bounty minion dies)
 func trigger_bounty(dying_minion: Node) -> void:
-	var receiving_player := 1 - dying_minion.owner_id
+	var receiving_player: int = 1 - dying_minion.owner_id
 	
 	# Default bounty: draw a card
 	_draw_card(receiving_player)
@@ -729,8 +565,8 @@ func execute_combat_with_keywords(attacker: Node, defender: Node) -> void:
 	if not is_instance_valid(attacker) or not is_instance_valid(defender):
 		return
 	
-	var attacker_damage := attacker.get_effective_attack()
-	var defender_damage := defender.get_effective_attack()
+	var attacker_damage: int = attacker.get_effective_attack()
+	var defender_damage: int = defender.get_effective_attack()
 	
 	# Check Bully bonus
 	if attacker.has_bully and defender_damage < attacker_damage:
@@ -759,7 +595,7 @@ func execute_combat_with_keywords(attacker: Node, defender: Node) -> void:
 	
 	# Drain heals attacker's hero
 	if attacker.has_drain and attacker_damage > 0:
-		heal_hero(attacker.owner_id, attacker_damage)
+		_heal_hero(attacker.owner_id, attacker_damage)
 		print("[GameManager] Drain healed player %d for %d" % [attacker.owner_id, attacker_damage])
 	
 	# Lethal destroys defender regardless of damage
@@ -771,11 +607,18 @@ func execute_combat_with_keywords(attacker: Node, defender: Node) -> void:
 	# Update attack counter
 	attacker.attacks_this_turn += 1
 
+
 ## =============================================================================
 ## AFFINITY CALCULATION - Updated for Dual Tags
 ## =============================================================================
+
+## Get affinity count for a card using the dual tag system
+func get_affinity_count_dual_tags(card: CardData, player_id: int) -> int:
+	# Check if card has a method to get affinity tag type
+	if not card.has_method("get_affinity_tag_type"):
+		return 0
 	
-	var affinity_type := card.get_affinity_tag_type()
+	var affinity_type: String = card.get_affinity_tag_type()
 	if affinity_type.is_empty():
 		return 0
 	
@@ -783,12 +626,12 @@ func execute_combat_with_keywords(attacker: Node, defender: Node) -> void:
 	var count := 0
 	
 	# Parse affinity type (format: "role:warrior" or "biology:beast")
-	var parts := affinity_type.split(":")
+	var parts: PackedStringArray = affinity_type.split(":")
 	if parts.size() != 2:
 		return 0
 	
-	var tag_category := parts[0]
-	var tag_name := parts[1]
+	var tag_category: String = parts[0]
+	var tag_name: String = parts[1]
 	
 	if tag_category == "role":
 		var target_role := MinionTags.get_role_from_name(tag_name)
@@ -851,12 +694,12 @@ func get_minions_with_tag(player_id: int, tag_name: String) -> Array:
 				result.append(minion)
 		return result
 	
-	# Try as biology
+	# Try as biology (note: HUMANOID is the default, not NONE)
 	var biology := MinionTags.get_biology_from_name(tag_name)
-	if biology != MinionTags.Biology.NONE:
-		for minion in board:
-			if is_instance_valid(minion) and minion.biology_tag == biology:
-				result.append(minion)
+	# Always check biology since HUMANOID is valid
+	for minion in board:
+		if is_instance_valid(minion) and minion.biology_tag == biology:
+			result.append(minion)
 	
 	return result
 
@@ -892,9 +735,7 @@ func check_role_synergies(player_id: int, summoned_minion: Node) -> void:
 
 ## Check and trigger biology synergies when a minion is summoned
 func check_biology_synergies(player_id: int, summoned_minion: Node) -> void:
-	if summoned_minion.biology_tag == MinionTags.Biology.NONE:
-		return
-	
+	# HUMANOID is the default biology - still valid for synergies
 	var count := count_biology(player_id, summoned_minion.biology_tag)
 	
 	# Emit signal for synergy effects
@@ -908,138 +749,53 @@ func check_biology_synergies(player_id: int, summoned_minion: Node) -> void:
 				_trigger_beast_pack(player_id)
 		MinionTags.Biology.UNDEAD:
 			if count >= 3:
-				print("[GameManager] Undead horde rises! %d Undead on board" % count)
+				print("[GameManager] Undead horde! %d Undead on board" % count)
 				_trigger_undead_horde(player_id)
-		MinionTags.Biology.VERMIN:
-			if count >= 4:
-				print("[GameManager] Vermin swarm! %d Vermin on board" % count)
-				_trigger_vermin_swarm(player_id)
 
 
-## Commander synergy effect
+## Synergy effect implementations
 func _trigger_commander_synergy(player_id: int) -> void:
-	var board: Array = players[player_id]["board"]
-	for minion in board:
-		if is_instance_valid(minion):
-			# All friendly minions get +1 attack this turn
-			minion.add_temporary_buff(1, 0)
+	# Commanders buff each other
+	var commanders := get_minions_with_role(player_id, MinionTags.Role.COMMANDER)
+	for commander in commanders:
+		if is_instance_valid(commander):
+			# Could add a buff here
+			pass
 
 
-## Zealot frenzy effect
 func _trigger_zealot_frenzy(player_id: int) -> void:
+	# Zealots go into frenzy mode
 	var zealots := get_minions_with_role(player_id, MinionTags.Role.ZEALOT)
 	for zealot in zealots:
 		if is_instance_valid(zealot):
-			# Zealots get +2 attack but take 1 damage
-			zealot.add_temporary_buff(2, 0)
-			zealot.take_damage(1)
+			# Could add a buff here
+			pass
 
 
-## Beast pack effect
 func _trigger_beast_pack(player_id: int) -> void:
+	# Beast pack bonus
 	var beasts := get_minions_with_biology(player_id, MinionTags.Biology.BEAST)
 	for beast in beasts:
 		if is_instance_valid(beast):
-			# All beasts get +1/+1
-			beast.add_permanent_buff(1, 1)
+			# Could add a buff here
+			pass
 
 
-## Undead horde effect
 func _trigger_undead_horde(player_id: int) -> void:
-	# Undead horde: summon a 1/1 Zombie token
-	print("[GameManager] Undead horde summons a Zombie!")
-	# Token summoning would be implemented separately
+	# Undead horde bonus
+	var undead := get_minions_with_biology(player_id, MinionTags.Biology.UNDEAD)
+	for u in undead:
+		if is_instance_valid(u):
+			# Could add a buff here
+			pass
 
-
-## Vermin swarm effect
-func _trigger_vermin_swarm(player_id: int) -> void:
-	var vermin := get_minions_with_biology(player_id, MinionTags.Biology.VERMIN)
-	for v in vermin:
-		if is_instance_valid(v):
-			# Vermin swarm: all vermin get +1 attack
-			v.add_temporary_buff(1, 0)
-
-
-## =============================================================================
-## REGISTER MINION - Updated to check synergies
-## =============================================================================
-
-## Register a minion on the board (UPDATED VERSION)
-func register_minion_on_board(player_id: int, minion_node: Node, lane: int = -1, row: int = -1) -> void:
-	players[player_id]["board"].append(minion_node)
-	print("[GameManager] Registered minion on board for player %d" % player_id)
-	
-	# MODIFIER HOOK: Minion summoned
-	if ModifierManager:
-		var row_int := 0 if minion_node.is_front_row else 1
-		ModifierManager.trigger_minion_summoned(minion_node, player_id, minion_node.lane_index, row_int)
-	
-	# CHECK TAG SYNERGIES
-	check_role_synergies(player_id, minion_node)
-	check_biology_synergies(player_id, minion_node)
-	
-	minion_summoned.emit(player_id, minion_node)
-
-
-## =============================================================================
-## CONDUIT - Updated for Savant/Elemental bonuses
-## =============================================================================
-
-## Get total spell damage bonus for a player
-func get_spell_damage_bonus(player_id: int) -> int:
-	var bonus := 0
-	var board: Array = players[player_id]["board"]
-	
-	# Conduit bonus
-	bonus += conduit_bonus[player_id]
-	
-	# Savant role bonus (+1 per Savant)
-	bonus += count_role(player_id, MinionTags.Role.SAVANT)
-	
-	# Elemental biology bonus (+1 per Elemental)
-	bonus += count_biology(player_id, MinionTags.Biology.ELEMENTAL)
-	
-	return bonus
-
-
-## =============================================================================
-## COMBAT MODIFIERS - Tag-based
-## =============================================================================
-
-## Get attack modifier based on tags
-func get_tag_attack_modifier(attacker: Node, defender: Node) -> int:
-	var modifier := 0
-	
-	# Bully check is handled in keywords
-	
-	# Raider first strike bonus
-	if attacker.has_method("get_raider_first_strike_bonus"):
-		modifier += attacker.get_raider_first_strike_bonus()
-	
-	# Beast pack bonus
-	if attacker.has_method("get_beast_pack_bonus"):
-		var board: Array = players[attacker.owner_id]["board"]
-		modifier += attacker.get_beast_pack_bonus(board)
-	
-	return modifier
-
-
-## Get damage reduction based on tags
-func get_tag_damage_reduction(defender: Node) -> int:
-	var reduction := 0
-	
-	# Construct armor
-	if defender.has_method("get_construct_armor"):
-		reduction += defender.get_construct_armor()
-	
-	return reduction
 
 ## =============================================================================
 ## CARD COST CALCULATION
 ## =============================================================================
 
 ## Get effective card cost (with Affinity, modifiers, etc.)
-func yget_card_cost(card: CardData, player_id: int) -> int:
+func get_effective_card_cost(card: CardData, player_id: int) -> int:
 	var base_cost := card.cost
 	
 	# Apply Affinity reduction
@@ -1048,8 +804,7 @@ func yget_card_cost(card: CardData, player_id: int) -> int:
 	
 	# Apply modifier system reductions
 	if ModifierManager:
-		base_cost = ModifierManager.apply_card_cost_modifiers(base_cost, card, player_id)
-	
+		base_cost = ModifierManager.apply_card_cost_modifiers(card, base_cost, player_id)	
 	# Minimum cost is 0
 	return maxi(0, base_cost)
 
@@ -1066,99 +821,29 @@ func _end_turn_keyword_cleanup(player_id: int) -> void:
 	var board: Array = players[player_id]["board"]
 	for minion in board:
 		if is_instance_valid(minion):
-			minion.clear_weakened()
-			minion.clear_stun()
+			if minion.has_method("clear_weakened"):
+				minion.clear_weakened()
+			if minion.has_method("clear_stun"):
+				minion.clear_stun()
+
+
+func remove_echo_copies(player_id: int) -> void:
+	var hand: Array = players[player_id]["hand"]
+	var to_remove: Array[CardData] = []
 	
-	# Reset action card tracking
-	last_card_was_action[player_id] = false
-
-
-## =============================================================================
-## CARD PLAY INTEGRATION
-## =============================================================================
-
-## Enhanced play_card with keyword support
-func play_card_with_keywords(player_id: int, card: CardData, target: Variant = null) -> bool:
-	# Check Empowered before playing
-	var is_empowered := check_empowered(player_id) and card.has_keyword("Empowered")
+	for card in hand:
+		if card.has_keyword("echo_copy"):
+			to_remove.append(card)
 	
-	# Standard play logic
-	if not play_card(player_id, card, target):
-		return false
-	
-	# Echo creates copy
-	if card.has_keyword("Echo"):
-		create_echo_copy(card, player_id)
-	
-	# Update action tracking for next Empowered check
-	update_last_card_type(card, player_id)
-	
-	# Pass empowered flag to effect system
-	if is_empowered:
-		print("[GameManager] Empowered bonus activated for %s!" % card.card_name)
-		card.set_meta("empowered_active", true)
-	
-	return true
-
-## =============================================================================
-## BOARD MANAGEMENT
-## =============================================================================
-
-## Remove a minion from the board
-func remove_minion_from_board(player_id: int, minion_node: Node) -> void:
-	var board: Array = players[player_id]["board"]
-	var index := board.find(minion_node)
-	if index != -1:
-		board.remove_at(index)
-
-
-## Get board for a player
-func get_board(player_id: int) -> Array:
-	return players[player_id]["board"]
+	for card in to_remove:
+		hand.erase(card)
+		print("[GameManager] Echo copy %s removed from hand" % card.card_name)
 
 
 ## =============================================================================
 ## COMBAT SYSTEM
 ## =============================================================================
 
-## Check if a target minion is valid for attack (respects Taunt)
-func is_valid_attack_target(attacker_player_id: int, target: Node) -> bool:
-	if not target or not is_instance_valid(target):
-		return false
-	
-	# Can't attack your own minions
-	if target.owner_id == attacker_player_id:
-		return false
-	
-	# Can't target Hidden minions
-	if target.has_hidden:
-		return false
-	
-	# MODIFIER HOOK: Check if modifiers allow targeting
-	if ModifierManager:
-		# We'd need the attacker node here for full implementation
-		# For now, just check the target
-		pass
-	
-	# Check if there's a Taunt minion in the same row that must be targeted first
-	var defender_player_id: int = target.owner_id
-	var board: Array = players[defender_player_id]["board"]
-	
-	# Find all Taunt minions in the same row as the target
-	var same_row_taunts: Array = []
-	for minion in board:
-		if minion and is_instance_valid(minion):
-			if minion.is_front_row == target.is_front_row and minion.has_taunt:
-				same_row_taunts.append(minion)
-	
-	# If there are Taunt minions in this row, target must be one of them
-	if same_row_taunts.size() > 0 and not target.has_taunt:
-		return false
-	
-	return true
-
-
-## Execute combat between two minions
 func execute_combat(attacker: Node, defender: Node) -> void:
 	if not is_instance_valid(attacker) or not is_instance_valid(defender):
 		return
@@ -1172,12 +857,13 @@ func execute_combat(attacker: Node, defender: Node) -> void:
 	var attacker_attack: int = attacker.get_effective_attack()
 	var defender_attack: int = defender.get_effective_attack()
 	
+	# Check for Shielded
 	var attacker_shielded: bool = attacker.has_shielded
 	var defender_shielded: bool = defender.has_shielded
 	
-	# Calculate base damage
-	var damage_to_attacker: int = defender_attack
+	# Calculate damage
 	var damage_to_defender: int = attacker_attack
+	var damage_to_attacker: int = defender_attack
 	
 	# MODIFIER HOOK: Modify damage dealt by attacker
 	if ModifierManager:
@@ -1208,7 +894,6 @@ func execute_combat(attacker: Node, defender: Node) -> void:
 	if attacker.has_bully and attacker_attack > defender_attack:
 		bully_active = true
 		print("[GameManager] Bully active! %s attacking weaker target" % attacker.card_data.card_name)
-		# Bully bonus effect would be processed here or by the minion
 		if ModifierManager:
 			ModifierManager.trigger_keyword("Bully", attacker, {"defender": defender})
 	

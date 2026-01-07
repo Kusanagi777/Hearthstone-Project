@@ -46,7 +46,7 @@ class minion_tags:
 ## Base health value (for minions)
 @export_range(0, 20) var health: int = 0
 
-@export var minion_tags: int = 0
+@export var min_tags: int = 0
 
 ## Card type determines behavior and valid targets
 @export var card_type: CardType = CardType.MINION
