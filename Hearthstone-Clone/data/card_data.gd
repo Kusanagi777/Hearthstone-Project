@@ -12,6 +12,7 @@ enum CardType {
 ## Enumeration for card rarity
 enum Rarity {
 	COMMON,
+	UNCOMMON,
 	RARE,
 	EPIC,
 	LEGENDARY
@@ -44,6 +45,8 @@ class minion_tags:
 
 ## Base health value (for minions)
 @export_range(0, 20) var health: int = 0
+
+@export var min_tags: int = 0
 
 ## Card type determines behavior and valid targets
 @export var card_type: CardType = CardType.MINION
@@ -79,7 +82,7 @@ class minion_tags:
 @export var keywords: Array[String] = []
 
 @export var role_tag: MinionTags.Role = MinionTags.Role.NONE
-@export var biology_tag: MinionTags.Biology = MinionTags.Biology.NONE
+@export var biology_tag: MinionTags.Biology = MinionTags.Biology.HUMANOID
 
 ## Runtime-only fields (not saved to resource)
 var _runtime_id: String = ""
@@ -297,16 +300,24 @@ func remove_minion_tag(tag: int) -> void:
 ## Get all minion tags as an array of strings
 func get_minion_tag_names() -> Array[String]:
 	var names: Array[String] = []
-	if has_minion_tag(MinionTags.BEAST):
+	if has_minion_tag(minion_tags.BEAST):
 		names.append("Beast")
-	if has_minion_tag(MinionTags.MECH):
-		names.append("Mech")
-	if has_minion_tag(MinionTags.IDOL):
-		names.append("Idol")
-	if has_minion_tag(MinionTags.UNDEAD):
+	if has_minion_tag(minion_tags.CONSTRUCT):
+		names.append("Construct")
+	if has_minion_tag(minion_tags.ELEMENTAL):
+		names.append("Elemental")
+	if has_minion_tag(minion_tags.UNDEAD):
 		names.append("Undead")
-	if has_minion_tag(MinionTags.DRAGON):
-		names.append("Dragon")
+	if has_minion_tag(minion_tags.FLORA):
+		names.append("Flora")
+	if has_minion_tag(minion_tags.HORROR):
+		names.append("Horror")
+	if has_minion_tag(minion_tags.VERMIN):
+		names.append("Vermin")
+	if has_minion_tag(minion_tags.CELESTIAL):
+		names.append("Celestial")
+	if has_minion_tag(minion_tags.HUMANOID):
+		names.append("Humanoid")
 	return names
 
 

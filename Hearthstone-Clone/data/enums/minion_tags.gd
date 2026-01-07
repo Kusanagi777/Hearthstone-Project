@@ -45,7 +45,7 @@ const ROLE_DESCRIPTIONS := {
 ## =============================================================================
 
 enum Biology {
-	NONE = 0,
+	HUMANOID = 0,
 	BEAST = 1,      # Animals/Monsters
 	CONSTRUCT = 2,  # Mechs/Golems
 	ELEMENTAL = 3,  # Fire/Void/Energy
@@ -58,7 +58,7 @@ enum Biology {
 
 ## Biology tag display names
 const BIOLOGY_NAMES := {
-	Biology.NONE: "",
+	Biology.HUMANOID: "Humanaoid",
 	Biology.BEAST: "Beast",
 	Biology.CONSTRUCT: "Construct",
 	Biology.ELEMENTAL: "Elemental",
@@ -71,7 +71,7 @@ const BIOLOGY_NAMES := {
 
 ## Biology tag descriptions
 const BIOLOGY_DESCRIPTIONS := {
-	Biology.NONE: "",
+	Biology.HUMANOID: "The Dominant species of the worlds",
 	Biology.BEAST: "Animals and Monsters - Natural creatures",
 	Biology.CONSTRUCT: "Mechs and Golems - Artificial beings",
 	Biology.ELEMENTAL: "Fire, Void, Energy - Pure elemental forces",
@@ -316,7 +316,7 @@ static func get_biology_from_name(name: String) -> Biology:
 		"celestial":
 			return Biology.CELESTIAL
 		_:
-			return Biology.NONE
+			return Biology.HUMANOID
 
 
 ## Get all valid biologies for a faction
@@ -341,7 +341,7 @@ static func get_primary_biologies_for_faction(faction: String) -> Array[Biology]
 
 ## Get biology distribution for faction
 static func get_biology_distribution(biology: Biology, faction: String) -> Distribution:
-	if biology == Biology.NONE:
+	if biology == Biology.HUMANOID:
 		return Distribution.BANNED
 	var dist: Dictionary = BIOLOGY_DISTRIBUTION.get(biology, {})
 	return dist.get(faction, Distribution.BANNED)
@@ -377,7 +377,7 @@ static func is_valid_for_faction(role: Role, biology: Biology, faction: String) 
 	# Both tags must not be banned (NONE tags are always valid)
 	if role != Role.NONE and role_dist == Distribution.BANNED:
 		return false
-	if biology != Biology.NONE and bio_dist == Distribution.BANNED:
+	if biology != Biology.HUMANOID and bio_dist == Distribution.BANNED:
 		return false
 	
 	return true
@@ -446,7 +446,7 @@ static func get_random_biology_for_faction(faction: String, rng: RandomNumberGen
 					weights.append(0.5)
 	
 	if biologies.is_empty():
-		return Biology.NONE
+		return Biology.HUMANOID
 	
 	# Weighted random selection
 	var total_weight := 0.0
@@ -475,7 +475,7 @@ static func share_role(role1: Role, role2: Role) -> bool:
 
 ## Check if two minions share a biology tag
 static func share_biology(bio1: Biology, bio2: Biology) -> bool:
-	return bio1 != Biology.NONE and bio1 == bio2
+	return bio1 != Biology.HUMANOID and bio1 == bio2
 
 
 ## Check if two minions share any tag

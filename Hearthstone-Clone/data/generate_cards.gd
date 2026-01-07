@@ -67,16 +67,14 @@ func _run():
 	for data in card_db:
 		var new_card = CardData.new()
 		
-		new_card.name = data["name"]
+		new_card.card_name = data["name"]
 		new_card.cost = data["cost"]
-		new_card.type = data["type"]
+		new_card.card_type = data["type"]
 		new_card.attack = data["atk"]
 		new_card.health = data["hp"]
 		
 		# Typed Array conversion
-		var tag_array: Array[String] = []
-		tag_array.assign(data["tags"])
-		new_card.tags = tag_array
+		new_card.tags.assign(data["tags"])
 		
 		new_card.rarity = data["rarity"]
 		new_card.text = data["text"]

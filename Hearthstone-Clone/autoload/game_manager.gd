@@ -606,7 +606,7 @@ func get_affinity_reduction(card: CardData, player_id: int) -> int:
 	
 	# Parse which tag provides affinity
 	var affinity_tag := _parse_affinity_tag(card)
-	if affinity_tag == MinionTags.NONE:
+	if affinity_tag == MinionTags.HUMANOID:
 		return 0
 	
 	# Count matching minions on board
