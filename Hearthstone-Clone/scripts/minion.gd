@@ -373,86 +373,6 @@ func clear_stun() -> void:
 
 
 ## Get effective attack (accounting for Weakened)
-func get_effective_attack() -> int:
-	var base := current_attack
-	
-	# Apply Weakened reduction
-	base -= weakened_amount
-	
-	# Apply modifiers
-	if ModifierManager:
-		base = ModifierManager.apply_attack_modifiers(base, self)
-	
-	return maxi(0, base)  # Attack can't go below 0
-
-
-## Get effective health
-func get_effective_health() -> int:
-	var base := current_health
-	
-	if ModifierManager:
-		base = ModifierManager.apply_health_modifiers(base, self)
-	
-	return base
-
-
-## Check if minion can attack
-func can_attack() -> bool:
-	# Stunned minions can't attack
-	if has_stun:
-		return false
-	
-	# Check attack count based on Aggressive
-	var max_attacks := 2 if has_aggressive else 1
-	if attacks_this_turn >= max_attacks:
-		return false
-	
-	# Just played check (unless has Charge)
-	if just_played and not has_charge:
-		# Rush allows attacking minions but not heroes
-		if has_rush:
-			return true  # Can attack, but target validation handles hero restriction
-		return false
-	
-	return true
-
-
-## Handle taking damage (with Resist and Shielded)
-func take_damage(amount: int) -> void:
-	var actual_damage := amount
-	
-	# Illusion - dies on any interaction
-	if has_illusion:
-		print("[Minion] %s Illusion triggered - dies on interaction!" % card_data.card_name)
-		die()
-		return
-	
-	# Shielded blocks damage
-	if has_shielded and actual_damage > 0:
-		has_shielded = false
-		print("[Minion] %s Shielded blocked %d damage!" % [card_data.card_name, actual_damage])
-		_play_damage_effect(0)  # Show shield break
-		_update_visuals()
-		return
-	
-	# Apply Resist reduction
-	if resist_value > 0:
-		actual_damage = maxi(0, actual_damage - resist_value)
-		print("[Minion] %s Resist reduced damage by %d!" % [card_data.card_name, resist_value])
-	
-	# Apply damage
-	current_health -= actual_damage
-	
-	if actual_damage > 0:
-		_play_damage_effect(actual_damage)
-	
-	_update_visuals()
-	
-	if current_health <= 0:
-		die()
-
-
-## Handle Pierce damage to hero
 func apply_pierce_damage(target_minion: Node, damage_dealt: int) -> void:
 	if not has_pierce:
 		return
@@ -521,9 +441,14 @@ func _transfer_to_huddled() -> void:
 ## Get effective attack value (base + modifiers)
 func get_effective_attack() -> int:
 	var base := current_attack
+
+	# Apply Weakened reduction
+	base -= weakened_amount
+
 	if ModifierManager:
-		return ModifierManager.apply_minion_attack_modifiers(self, base)
-	return base
+		base = ModifierManager.apply_minion_attack_modifiers(self, base)
+
+	return maxi(0, base)
 
 
 ## Get effective health value (base + modifiers)
@@ -547,25 +472,40 @@ func get_effective_max_health() -> int:
 ## =============================================================================
 
 func take_damage(amount: int) -> void:
-	if amount <= 0:
+	# Illusion - dies on any interaction
+	if has_illusion:
+		print("[Minion] %s Illusion triggered - dies on interaction!" % card_data.card_name)
+		die()
+		return
+
+	var actual_damage := amount
+	if actual_damage <= 0:
 		return
 	
 	# Shielded absorbs the first damage instance
-	if has_shielded and amount > 0:
+	if has_shielded and actual_damage > 0:
 		has_shielded = false
 		_update_visuals()
 		_play_damage_effect(0)  # Shield absorbed
 		
 		# MODIFIER HOOK: Keyword triggered
 		if ModifierManager:
-			ModifierManager.trigger_keyword("Shielded", self, {"blocked": amount})
+			ModifierManager.trigger_keyword("Shielded", self, {"blocked": actual_damage})
 		return
 	
+	# Apply Resist reduction
+	if resist_value > 0:
+		actual_damage = maxi(0, actual_damage - resist_value)
+		print("[Minion] %s Resist reduced damage by %d!" % [card_data.card_name, resist_value])
+
 	# Note: Damage modification is handled in GameManager.execute_combat()
 	# This function receives already-modified damage
-	current_health -= amount
+	current_health -= actual_damage
 	_update_visuals()
-	_play_damage_effect(amount)
+	_play_damage_effect(actual_damage)
+
+	if current_health <= 0:
+		die()
 
 
 func heal(amount: int) -> void:
@@ -623,6 +563,10 @@ func get_card_data() -> CardData:
 ## =============================================================================
 
 func can_attack() -> bool:
+	# Stunned minions can't attack
+	if has_stun:
+		return false
+
 	# MODIFIER HOOK: Check if modifiers prevent attacking
 	if ModifierManager:
 		# We'll check with a dummy target - the actual target check happens elsewhere
