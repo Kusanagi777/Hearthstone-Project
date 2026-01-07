@@ -74,7 +74,7 @@ func _run():
 		new_card.health = data["hp"]
 		
 		# Typed Array conversion
-		new_card.tags.assign(data["tags"])
+		new_card.minion_tags.assign(data["tags"])
 		
 		new_card.rarity = data["rarity"]
 		new_card.text = data["text"]

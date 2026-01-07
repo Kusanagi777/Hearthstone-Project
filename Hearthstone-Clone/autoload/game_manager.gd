@@ -628,6 +628,14 @@ func _parse_affinity_tag(card: CardData) -> int:
 		if kw_lower.begins_with("affinity"):
 			if "beast" in kw_lower:
 				return MinionTags.BEAST
+			elif "construct" in kw_lower:
+				return MinionTags.CONSTRUCT
+			elif "idol" in kw_lower:
+				return MinionTags.IDOL
+			elif "undead" in kw_lower:
+				return MinionTags.UNDEAD
+			elif "dragon" in kw_lower:
+				return MinionTags.DRAGON
 			elif "mech" in kw_lower:
 				return MinionTags.MECH
 			elif "idol" in kw_lower:
