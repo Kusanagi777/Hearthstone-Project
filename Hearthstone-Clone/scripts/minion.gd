@@ -83,7 +83,7 @@ var has_silence: bool = false      # Has been silenced (keywords removed)
 
 ## Tracking Variables
 var drawn_this_turn: bool = false  # For Fated keyword
-var attacks_this_turn: int = 0     # For Aggressive keyword
+# attacks_this_turn is already declared above
 var echo_card: bool = false        # Is this an echo copy?
 var weakened_amount: int = 0       # Temporary attack reduction
 
@@ -702,7 +702,6 @@ func refresh_for_turn() -> void:
 	has_moved_this_turn = false
 	attacks_this_turn = 0
 	just_played = false
-	attacks_this_turn = 0
 	drawn_this_turn = false
 	clear_stun()
 	clear_weakened()
