@@ -391,6 +391,13 @@ func add_minion_to_board(player_id: int, minion: Node) -> bool:
 	return true
 
 
+## Register minion on board with explicit positioning (wrapper for add_minion_to_board)
+func register_minion_on_board(player_id: int, minion: Node, _lane_index: int, _row_index: int) -> void:
+	# Note: lane_index and row_index are expected to be set on the minion already or handled by the caller
+	# add_minion_to_board uses the minion's properties for the hook
+	add_minion_to_board(player_id, minion)
+
+
 func remove_minion_from_board(player_id: int, minion: Node) -> void:
 	var board: Array = players[player_id]["board"]
 	board.erase(minion)

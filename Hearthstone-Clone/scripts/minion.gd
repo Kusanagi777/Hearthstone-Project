@@ -96,14 +96,14 @@ var biology_tag: MinionTags.Biology = MinionTags.Biology.NONE
 
 ## UI References
 @onready var frame: Panel = $Frame
-@onready var art_panel: Panel = $Frame/VBox/ArtPanel
-@onready var card_art: TextureRect = $Frame/VBox/ArtPanel/CardArt
-@onready var name_label: Label = $Frame/VBox/NameLabel
+@onready var art_panel: Panel = $Frame/ArtPanel
+@onready var card_art: TextureRect = $Frame/ArtPanel/CardArt
+@onready var name_label: Label = $Frame/NameLabel
 @onready var attack_icon: Panel = $Frame/AttackIcon
 @onready var attack_label: Label = $Frame/AttackIcon/AttackLabel
 @onready var health_icon: Panel = $Frame/HealthIcon
 @onready var health_label: Label = $Frame/HealthIcon/HealthLabel
-@onready var taunt_border: Panel = $Frame/TauntBorder
+@onready var taunt_border: Panel = $TauntBorder
 @onready var divine_shield_effect: ColorRect = $Frame/DivineShieldEffect
 @onready var highlight: ColorRect = $Frame/Highlight
 @onready var sleeping_icon: Label = $Frame/SleepingIcon
