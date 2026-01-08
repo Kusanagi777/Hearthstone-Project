@@ -92,7 +92,7 @@ var huddled_minion: Node = null    # Reference to huddled minion
 
 ## Minion Tags
 var role_tag: MinionTags.Role = MinionTags.Role.NONE
-var biology_tag: MinionTags.Biology = MinionTags.Biology.NONE
+var biology_tag: MinionTags.Biology = MinionTags.Biology.HUMANOID
 
 ## UI References
 @onready var frame: Panel = $Frame
@@ -373,7 +373,7 @@ func clear_stun() -> void:
 
 
 ## Get effective attack (accounting for Weakened)
-func apply_pierce_damage(target_minion: Node, damage_dealt: int) -> void:
+func apply_pierce_damage(target_minion: Minion, damage_dealt: int) -> void:
 	if not has_pierce:
 		return
 	
